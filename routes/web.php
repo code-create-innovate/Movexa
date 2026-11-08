@@ -79,6 +79,7 @@ Route::middleware('auth')->group(function () {
         Route::post('title/{item}/list', [BrowseController::class, 'toggleList'])->name('title.list');
         Route::post('title/{item}/rate', [BrowseController::class, 'rate'])->name('title.rate');
         Route::put('profile/preferences', [ProfileController::class, 'preferences'])->name('profile.preferences');
+        Route::get('settings/playback', [ProfileController::class, 'playbackSettings'])->name('settings.playback');
 
         Route::get('watch/{file}', [PlaybackController::class, 'page'])->name('watch');
         Route::get('playback/{file}/check', [PlaybackController::class, 'check'])->name('playback.check');
@@ -132,6 +133,7 @@ Route::middleware('auth')->group(function () {
             Route::post('files/{file}/intro', [AdminController::class, 'setIntro'])->name('files.intro');
             Route::post('files/{file}/pretranscode', [AdminController::class, 'pretranscode'])->name('files.pretranscode');
             Route::patch('items/{item}', [AdminController::class, 'updateItem'])->name('items.update');
+            Route::post('items/{item}/feature', [AdminController::class, 'feature'])->name('items.feature');
             Route::delete('transcodes/{job}', [AdminController::class, 'deleteTranscode'])->name('transcodes.destroy');
             Route::get('quarantine', [AdminController::class, 'quarantine'])->name('quarantine');
             Route::post('quarantine/{job}/retry', [AdminController::class, 'retry'])->name('quarantine.retry');

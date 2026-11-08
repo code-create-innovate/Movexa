@@ -48,13 +48,42 @@ class PlaybackController extends Controller
                 'audio' => $f->streams->where('type', 'audio')->map(fn ($s) => ['language' => $s->language, 'title' => $s->title, 'codec' => $s->codec])->values(),
                 'qualities' => array_values(app(HlsPackager::class)->ladderFor($f)),
             ],
-            'item' => $present->card($f->item, $profile),
+            'item' => $present->card($f->item, $profile) + [
+                'overview' => app()->getLocale() === 'ar' ? ($f->item->overview_ar ?: $f->item->overview) : ($f->item->overview ?: $f->item->overview_ar),
+                'cast' => array_slice(array_column($f->item->cast ?? [], 'name'), 0, 4),
+            ],
+            'recap' => $this->recap($f, $profile),
+            'settings' => $profile->allSettings(),
             'episode' => $f->episode ? ['season' => $f->episode->season->number, 'number' => $f->episode->number, 'title' => $f->episode->title] : null,
             'next' => $next?->file ? ['file_id' => $next->file->id, 'season' => $next->season->number, 'number' => $next->number, 'title' => $next->title] : null,
             'prefs' => $profile->subtitle_prefs ?? ['size' => 100, 'color' => '#ffffff', 'background' => 60, 'position' => 8],
             'preferredSubtitle' => $profile->preferred_subtitle_lang,
             'party' => $request->query('party'),
         ]);
+    }
+
+    /**
+     * "وين وقفنا؟" — returning to a show after N days: summary of the last episode THIS profile watched
+     * (stored locally, Arabic first). Never anything about upcoming episodes. No summary → no card.
+     */
+    private function recap(MediaFile $f, $profile): ?array
+    {
+        if (! $f->episode_id || ! $profile->setting('recap')) {
+            return null;
+        }
+        $last = WatchProgress::with('episode.season')->where('profile_id', $profile->id)->where('media_item_id', $f->media_item_id)
+            ->where('media_file_id', '!=', $f->id)->whereNotNull('episode_id')->latest('updated_at')->first();
+        if (! $last || $last->updated_at->gt(now()->subDays(config('movexa.discovery.recap_after_days'))) || ! $last->episode) {
+            return null;
+        }
+        $ar = app()->getLocale() === 'ar';
+        $summary = $ar ? ($last->episode->overview_ar ?: $last->episode->overview) : ($last->episode->overview ?: $last->episode->overview_ar);
+        if (! $summary) {
+            return null;
+        }
+
+        return ['season' => $last->episode->season->number, 'number' => $last->episode->number,
+            'title' => $ar ? ($last->episode->title_ar ?: $last->episode->title) : $last->episode->title, 'summary' => $summary, 'days' => (int) $last->updated_at->diffInDays(now())];
     }
 
     /** Lightweight re-check used by players after an "access revoked" signal. */
@@ -94,6 +123,7 @@ class PlaybackController extends Controller
             'position' => (float) (WatchProgress::where('profile_id', $profile->id)->where('media_file_id', $f->id)->where('completed', false)->value('position') ?? 0),
             'subtitles' => $f->subtitles->map(fn ($s) => ['id' => $s->id, 'label' => $s->label, 'language' => $s->language, 'url' => $this->signer->url('sub', $s->id, $user->id, $profile->id, 'subtitle.vtt')])->values(),
             'thumbnails' => $f->thumbnails_path ? $this->signer->url('thumb', $f->id, $user->id, $profile->id, 'thumbnails.vtt') : null,
+            'colors' => $f->thumbnails_path && is_file($f->thumbnails_path.'/colors.json') ? $this->signer->url('thumb', $f->id, $user->id, $profile->id, 'colors.json') : null,
         ];
 
         if ($decision['method'] === 'direct') {
@@ -129,6 +159,10 @@ class PlaybackController extends Controller
         $file = MediaFile::find($s->media_file_id);
         $duration = $data['duration'] ?: $file->duration;
         $completed = $duration && $data['position'] >= $duration * 0.92;
+        if (! $s->counted && $duration && $data['position'] >= min(600, $duration * 0.2)) {
+            DB::table('view_events')->insert(['profile_id' => $profile->id, 'media_item_id' => $file->media_item_id, 'counted_at' => now()]);
+            $s->update(['counted' => true]);
+        }
         $row = WatchProgress::firstOrNew(['profile_id' => $profile->id, 'media_file_id' => $file->id]);
         $wasCompleted = $row->exists && $row->completed;
         $row->fill(['media_item_id' => $file->media_item_id, 'episode_id' => $file->episode_id, 'position' => $completed ? 0 : $data['position'], 'duration' => $duration, 'completed' => $completed])->save();

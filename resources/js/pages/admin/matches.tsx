@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import AdminLayout, { Section } from '@/layouts/admin-layout';
 import { useT } from '@/lib/i18n';
 
-type Row = { id: number; name: string; item: { id: number; title: string; year: number | null; type: string; tmdb_id: number | null; age_rating: number | null } | null; season: number | null; episode: number | null; sanitized: boolean; linked: boolean };
+type Row = { id: number; name: string; item: { id: number; title: string; year: number | null; type: string; tmdb_id: number | null; age_rating: number | null; featured?: boolean } | null; season: number | null; episode: number | null; sanitized: boolean; linked: boolean };
 
 export default function Matches({ files }: { files: { data: Row[]; links: { url: string | null; label: string; active: boolean }[] } }) {
     const { t } = useT();
@@ -48,6 +48,7 @@ function MatchRow({ f }: { f: Row }) {
                 <Input className="w-20" placeholder="90" value={intro.intro_end} onChange={(e) => setIntro({ ...intro, intro_end: e.target.value })} />
                 <Button size="sm" variant="ghost" onClick={() => router.post(`/admin/files/${f.id}/intro`, { intro_start: num(intro.intro_start) ?? 0, intro_end: num(intro.intro_end) }, { preserveScroll: true })}>{t.save}</Button>
                 <Button size="sm" variant="ghost" onClick={() => router.post(`/admin/files/${f.id}/pretranscode`, {}, { preserveScroll: true })}>{t.adminUi.pretranscode}</Button>
+                {f.item && <Button size="sm" variant={f.item.featured ? 'default' : 'ghost'} onClick={() => router.post(`/admin/items/${f.item!.id}/feature`, {}, { preserveScroll: true })}>★ {t.adminUi.feature}</Button>}
             </div>
         </div>
     );

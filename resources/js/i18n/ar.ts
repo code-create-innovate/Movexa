@@ -14,7 +14,7 @@ export default {
         preparing: 'جارٍ تجهيز الفيديو…', quality: 'الجودة', auto: 'تلقائي', original: 'الأصلية', speed: 'السرعة', skipIntro: 'تخطي المقدمة',
         nextIn: 'الحلقة التالية خلال', cancel: 'إلغاء', playNow: 'شغّل الآن', pip: 'صورة داخل صورة', fullscreen: 'ملء الشاشة', subStyle: 'مظهر الترجمة',
         size: 'الحجم', color: 'اللون', background: 'الخلفية', position: 'الموضع', uploadSub: 'رفع ملف ترجمة', limit: 'وصلت للحد الأقصى من البثوث المتزامنة',
-        method: { direct: 'تشغيل مباشر', remux: 'تغيير الحاوية', transcode: 'تحويل' }, error: 'تعذر التشغيل', back: 'رجوع',
+        pauseLabel: 'متوقف مؤقتاً', method: { direct: 'تشغيل مباشر', remux: 'تغيير الحاوية', transcode: 'تحويل' }, error: 'تعذر التشغيل', back: 'رجوع',
     },
     liveTv: {
         now: 'الآن', next: 'التالي', favorites: 'المفضلة', all: 'الكل', reconnecting: 'إعادة الاتصال…', latency: 'التأخير', viewers: 'مشاهدون',
@@ -30,6 +30,7 @@ export default {
         legalNote: 'أنت مسؤول عن قانونية المصدر. استخدم فقط اشتراكات IPTV مرخّصة أو جهاز استقبال تملكه.', legalAck: 'أؤكد أن هذا المصدر قانوني ومرخّص لي',
         refresh: 'تحديث', record: 'تسجيل', recordings: 'التسجيلات', pretranscode: 'تحويل مسبق', pinned: 'مثبّت', events: 'سجل الأمان', recent: 'آخر الملفات',
         maxStreams: 'حد البثوث', admin: 'مسؤول', rematch: 'تصحيح', intro: 'المقدمة (ثوانٍ)', cpu: 'حمل المعالج', available: 'متاح', unavailable: 'غير متاح',
+        feature: 'تثبيت في البانر',
         securityUpdates: 'تحديثات أمنية متاحة',
     },
     blocks: {
@@ -50,5 +51,11 @@ export default {
         offlineNote: 'النسخة المحفوظة تعمل دون اتصال، وتنتهي صلاحيتها بعد 30 يوماً ما لم يتصل الجهاز بالخادم. إذا سُحبت الصلاحية تُحذف عند أول اتصال.', expires: 'ينتهي', countLimit: 'وصلت للحد الأقصى من التنزيلات', quota: 'المساحة المخصصة لا تكفي',
     },
     pick: { button: 'شن نتفرج؟', title: 'شن نتفرج؟', another: 'اختيار آخر', none: 'ما لقينا شي يطابق اختياراتك. جرّب تخفف الفلاتر.', anyType: 'فيلم أو مسلسل', minutes: 'الوقت المتاح (دقيقة)', lang: 'لغة الصوت أو الترجمة', go: 'اختر لي', details: 'التفاصيل' },
+    top: { movies: 'أكثر 10 أفلام مشاهدة في الحوش', shows: 'أكثر 10 مسلسلات مشاهدة في الحوش' },
+    visuals: {
+        title: 'إعدادات المشاهدة', intro: 'مقدمة Movexa عند الدخول', pauseScreen: 'شاشة الإيقاف المؤقت', posterWall: 'جدار البوسترات المتحرك', recap: 'بطاقة "وين وقفنا؟"',
+        ambient: 'إضاءة حول الفيديو', off: 'إيقاف', soft: 'خفيف', strong: 'قوي', endsAt: 'ينتهي الساعة', remaining: 'متبقٍ', recapTitle: 'وين وقفنا؟', continue: 'كمّل', skip: 'تخطَّ',
+        lastTime: 'آخر مرة شاهدت', minutes: 'دقيقة',
+    },
     twoFactor: { title: 'المصادقة الثنائية', enable: 'تفعيل', disable: 'تعطيل', enabled: 'مفعّلة', scan: 'أضف هذا المفتاح في تطبيق المصادقة ثم أدخل الرمز', code: 'رمز التحقق', password: 'كلمة المرور', verify: 'تحقق' },
 };

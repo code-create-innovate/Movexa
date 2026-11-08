@@ -129,6 +129,13 @@ class MovexaCommands
             $this->info("purged {$n}");
         })->purpose('Delete quarantined files older than the retention period');
 
+        Artisan::command('movexa:colors', function () {
+            $svc = app(\App\Modules\Media\Services\ColorService::class);
+            \App\Modules\Library\Models\MediaItem::each(fn ($i) => $svc->refreshItem($i));
+            \App\Modules\Library\Models\MediaFile::where('status', 'ready')->whereNotNull('video_codec')->each(fn ($f) => $svc->timeline($f));
+            $this->info('colors refreshed');
+        })->purpose('Backfill dominant colors, small posters and ambient color timelines');
+
         Artisan::command('movexa:security-versions', function () {
             $ff = new Process([config('movexa.binaries.ffmpeg'), '-version']);
             $ff->run();

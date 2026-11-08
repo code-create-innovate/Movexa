@@ -40,10 +40,15 @@ class BrowseController extends Controller
             $items = $visible()->get()->filter(fn ($i) => in_array($g, $i->genres ?? [], true))->take(20);
             $rows[] = ['key' => 'genre', 'label' => $g, 'items' => $this->present->cards($items, $profile)];
         }
-        $hero = $visible()->whereNotNull('backdrop_path')->inRandomOrder()->first();
+        $discovery = app(\App\Modules\Library\Services\Discovery::class);
+        array_splice($rows, 2, 0, [
+            ['key' => 'top_movies', 'items' => $discovery->top10($profile, 'movie'), 'top' => true],
+            ['key' => 'top_shows', 'items' => $discovery->top10($profile, 'show'), 'top' => true],
+        ]);
 
         return Inertia::render('browse/home', [
-            'hero' => $hero ? $this->present->card($hero, $profile) + ['overview' => app()->getLocale() === 'ar' ? ($hero->overview_ar ?: $hero->overview) : $hero->overview] : null,
+            'banner' => $discovery->banner($profile),
+            'wall' => $profile->setting('poster_wall') ? $discovery->wall($profile) : [],
             'rows' => array_values(array_filter($rows, fn ($r) => count($r['items']) > 0)),
         ]);
     }

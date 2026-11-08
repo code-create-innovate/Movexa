@@ -5,7 +5,7 @@ cd "$(dirname "$0")/../.."
 WORK=${WORK:-$(mktemp -d)}
 export APP_ENV=local APP_DEBUG=true DB_CONNECTION=sqlite DB_DATABASE="$WORK/e2e.sqlite" SESSION_DRIVER=file CACHE_STORE=file QUEUE_CONNECTION=sync \
   BROADCAST_CONNECTION=null MOVEXA_DATA_ROOT="$WORK/data" MOVEXA_SERVE_MODE=php MOVEXA_SANDBOX=${MOVEXA_SANDBOX:-unshare} \
-  MOVEXA_SCANNER=clamd MOVEXA_REQUIRE_SCANNER=false MOVEXA_HWACCEL=none MOVEXA_STREAMS_PER_USER=10 APP_URL=http://127.0.0.1:8765 PHP_CLI_SERVER_WORKERS=6
+  MOVEXA_SCANNER=clamd MOVEXA_REQUIRE_SCANNER=false MOVEXA_HWACCEL=none MOVEXA_STREAMS_PER_USER=10 MOVEXA_LIVE_FILE_SOURCES=true APP_URL=http://127.0.0.1:8765 PHP_CLI_SERVER_WORKERS=6
 for d in inbox library quarantine cache images uploads; do export "MOVEXA_${d^^}=$WORK/data/$d"; done
 touch "$DB_DATABASE"
 [ -f public/build/manifest.json ] || npx vite build

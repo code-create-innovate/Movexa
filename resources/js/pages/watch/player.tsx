@@ -10,16 +10,19 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { Slider } from '@/components/ui/slider';
+import { heavyVisualsOk, reducedMotion } from '@/lib/device-class';
 import { getEcho } from '@/lib/echo';
 import { api, csrf, formatTime, useT } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { Card, SharedData, SubPrefs } from '@/types';
 
 type Sub = { id: number; label: string; language: string | null; url: string };
-type Start = { keep?: boolean; session: string; method: 'direct' | 'remux' | 'transcode'; type: 'file' | 'hls'; src: string; ready: boolean; job?: number; progress?: number; position: number; subtitles: Sub[]; thumbnails: string | null };
+type Start = { colors?: string | null; keep?: boolean; session: string; method: 'direct' | 'remux' | 'transcode'; type: 'file' | 'hls'; src: string; ready: boolean; job?: number; progress?: number; position: number; subtitles: Sub[]; thumbnails: string | null };
 type Props = {
     file: { id: number; duration: number; height: number | null; intro: { start: number; end: number } | null; audio: { language: string | null; title: string | null; codec: string }[]; qualities: number[] };
-    item: Card; episode: { season: number; number: number; title: string | null } | null;
+    item: Card & { overview?: string | null; cast?: string[] }; episode: { season: number; number: number; title: string | null } | null;
+    recap: { season: number; number: number; title: string | null; summary: string; days: number } | null;
+    settings: { pause_screen: boolean; ambient: 'off' | 'soft' | 'strong' };
     next: { file_id: number; season: number; number: number; title: string | null } | null;
     prefs: SubPrefs; preferredSubtitle: string | null; party: string | null;
 };
@@ -28,7 +31,7 @@ type Msg = { id: number; name: string; body: string };
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
-export default function Player({ file, item, episode, next, prefs: initialPrefs, preferredSubtitle, party }: Props) {
+export default function Player({ file, item, episode, next, prefs: initialPrefs, preferredSubtitle, party, recap, settings }: Props) {
     const { t, dir } = useT();
     const { reverb, profile } = usePage<SharedData>().props;
     const video = useRef<HTMLVideoElement>(null);
@@ -64,6 +67,14 @@ export default function Player({ file, item, episode, next, prefs: initialPrefs,
     const [members, setMembers] = useState<{ id: number; name: string }[]>([]);
     const [draft, setDraft] = useState('');
     const [subStyleOpen, setSubStyleOpen] = useState(false);
+    // visuals
+    const [ambient, setAmbient] = useState<'off' | 'soft' | 'strong'>(heavyVisualsOk() ? settings.ambient : 'off');
+    const [timeline, setTimeline] = useState<{ step: number; colors: string[] } | null>(null);
+    const [pausedLong, setPausedLong] = useState(false);
+    const [showRecap, setShowRecap] = useState(!!recap);
+    const [boost, setBoost] = useState(false);            // long-press 2×
+    const [gesture, setGesture] = useState<{ kind: 'volume' | 'brightness'; value: number } | null>(null);
+    const [brightness, setBrightness] = useState(1);
 
     // ---- start / restart playback --------------------------------------------------
     const begin = useCallback(async (opts: { quality?: string; audio?: number; keepTime?: boolean } = {}) => {
@@ -99,7 +110,7 @@ export default function Player({ file, item, episode, next, prefs: initialPrefs,
         hls.current = null;
         // Resume rule (skip tiny/near-end positions) applies to fresh starts; quality/audio switches keep the exact time.
         const seekTo = start.keep ? start.position : start.position > 5 && start.position < (file.duration || Infinity) - 10 ? start.position : 0;
-        const onMeta = () => { if (seekTo) v.currentTime = seekTo; v.play().catch(() => {}); };
+        const onMeta = () => { if (seekTo) v.currentTime = seekTo; if (!recapOpen.current) v.play().catch(() => {}); };
         v.addEventListener('loadedmetadata', onMeta, { once: true });
         if (start.type === 'hls' && Hls.isSupported() && !isApple()) {
             const h = new Hls({ xhrSetup: (x) => { x.withCredentials = true; }, startPosition: seekTo || -1, capLevelToPlayerSize: true });
@@ -118,6 +129,7 @@ export default function Player({ file, item, episode, next, prefs: initialPrefs,
             v.src = start.src; // Direct Play, or native HLS (Safari / iOS)
         }
         if (start.thumbnails) loadThumbnails(start.thumbnails).then(setThumbs);
+        if (start.colors) fetch(start.colors, { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null)).then(setTimeline).catch(() => {});
         const pref = preferredSubtitle && start.subtitles.find((s) => s.language?.startsWith(preferredSubtitle));
         if (pref) setSubId(pref.id);
         return () => { v.removeEventListener('loadedmetadata', onMeta); };
@@ -182,6 +194,16 @@ export default function Player({ file, item, episode, next, prefs: initialPrefs,
         const id = setInterval(() => api<PartyState & { messages: Msg[] }>(`/party/${party}/state`).then((r) => { if (r.ok) { applyParty(r.data); setMessages(r.data.messages); } }), 3000);
         return () => clearInterval(id);
     }, [party, start, reverb, applyParty]);
+
+    const recapOpen = useRef(!!recap);
+    recapOpen.current = showRecap;
+
+    // ---- pause screen: 5 s after pausing (not in watch party, can be disabled per profile) -------------
+    useEffect(() => {
+        if (playing || !settings.pause_screen || !start || showRecap) { setPausedLong(false); return; }
+        const id = setTimeout(() => setPausedLong(true), 5000);
+        return () => clearTimeout(id);
+    }, [playing, settings.pause_screen, start, showRecap]);
 
     // ---- remote control target: report state, apply server-relayed commands -------------------
     const remoteSeq = useRef(0);
@@ -258,6 +280,7 @@ export default function Player({ file, item, episode, next, prefs: initialPrefs,
 
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
+            setPausedLong(false);
             if ((e.target as HTMLElement)?.closest('input,textarea,[role=menu]')) return;
             const k = e.key.toLowerCase();
             const map: Record<string, () => void> = {
@@ -283,10 +306,58 @@ export default function Player({ file, item, episode, next, prefs: initialPrefs,
         return () => document.removeEventListener('fullscreenchange', onFs);
     }, []);
 
-    // Double tap on touch: left third = −10s, right third = +10s (physical sides, independent of RTL).
+    // ---- touch gestures (physical sides — never mirrored in RTL) -----------------------------------------
+    //  · double tap: left third −10 s, right third +10 s, centre = fullscreen
+    //  · long press: 2× while held (not in watch party), previous speed restored on release
+    //  · vertical swipe: left side = brightness (CSS filter on the video only), right side = volume (hidden where
+    //    the browser does not allow changing volume, e.g. iPhone)
     const lastTap = useRef(0);
+    const touch = useRef<{ x: number; y: number; t: number; side: 'left' | 'right' | 'center'; moved: boolean; start: number; mode: null | 'volume' | 'brightness'; timer?: ReturnType<typeof setTimeout>; rate?: number } | null>(null);
+    const volumeSettable = useMemo(() => { const a = document.createElement('video'); a.volume = 0.5; return a.volume === 0.5 && !isApple(); }, []);
+    const onDown = (e: React.PointerEvent) => {
+        if (e.pointerType !== 'touch') return;
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width;
+        const side = x < 0.35 ? 'left' : x > 0.65 ? 'right' : 'center';
+        touch.current = { x: e.clientX, y: e.clientY, t: Date.now(), side, moved: false, start: 0, mode: null };
+        if (!party) {
+            touch.current.timer = setTimeout(() => {
+                const v = video.current;
+                if (!v || !touch.current || touch.current.moved) return;
+                touch.current.rate = v.playbackRate;
+                v.playbackRate = 2;
+                setBoost(true);
+            }, 500);
+        }
+    };
+    const onMove = (e: React.PointerEvent) => {
+        const t0 = touch.current;
+        if (!t0 || e.pointerType !== 'touch') return;
+        const dx = e.clientX - t0.x, dy = e.clientY - t0.y;
+        if (!t0.moved && Math.abs(dy) > 24 && Math.abs(dy) > Math.abs(dx) * 1.5 && t0.side !== 'center' && !boost) {
+            t0.moved = true;
+            clearTimeout(t0.timer);
+            t0.mode = t0.side === 'left' ? 'brightness' : volumeSettable ? 'volume' : null;
+            t0.start = t0.mode === 'brightness' ? brightness : video.current?.volume ?? 1;
+        } else if (Math.hypot(dx, dy) > 12) {
+            t0.moved = true;
+            clearTimeout(t0.timer);
+        }
+        if (t0.mode) {
+            const h = (e.currentTarget as HTMLElement).getBoundingClientRect().height;
+            const delta = -dy / (h * 0.6);
+            if (t0.mode === 'brightness') { const b = Math.min(1.6, Math.max(0.3, t0.start + delta)); setBrightness(b); setGesture({ kind: 'brightness', value: (b - 0.3) / 1.3 }); }
+            else if (video.current) { const vol = Math.min(1, Math.max(0, t0.start + delta)); video.current.volume = vol; video.current.muted = vol === 0; setGesture({ kind: 'volume', value: vol }); }
+        }
+    };
     const onTap = (e: React.PointerEvent) => {
         if (e.pointerType !== 'touch') return toggle();
+        const t0 = touch.current;
+        touch.current = null;
+        clearTimeout(t0?.timer);
+        setTimeout(() => setGesture(null), 600);
+        if (boost) { if (video.current) video.current.playbackRate = t0?.rate ?? speed; setBoost(false); return; }
+        if (t0?.moved) return;
         const now = Date.now();
         const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
         const x = (e.clientX - rect.left) / rect.width;
@@ -294,6 +365,9 @@ export default function Player({ file, item, episode, next, prefs: initialPrefs,
         else poke();
         lastTap.current = now;
     };
+    const ambientColor = timeline && timeline.colors.length ? timeline.colors[Math.min(timeline.colors.length - 1, Math.floor(time / timeline.step))] : null;
+    const remaining = Math.max(0, duration - time);
+    const endsAt = new Date(Date.now() + (remaining / (video.current?.playbackRate || speed || 1)) * 1000);
 
     // Next episode countdown in the last 20 seconds.
     useEffect(() => {
@@ -328,11 +402,17 @@ export default function Player({ file, item, episode, next, prefs: initialPrefs,
     const pct = duration ? (time / duration) * 100 : 0;
 
     return (
-        <div ref={wrap} className={cn('relative h-dvh w-full overflow-hidden bg-black text-white', !controls && 'cursor-none')} onPointerMove={poke}
+        <div ref={wrap} className={cn('relative h-dvh w-full overflow-hidden bg-black text-white', !controls && 'cursor-none')} onPointerMove={() => { poke(); setPausedLong(false); }}
             style={{ ['--sub-size' as string]: prefs.size, ['--sub-color' as string]: prefs.color, ['--sub-bg' as string]: prefs.background / 100 }}>
             <Head title={item.title} />
+            {/* Ambient light: soft glow in the empty space around the video, following the scene colors (precomputed timeline, CSS transitions only). */}
+            {ambient !== 'off' && ambientColor && (
+                <div data-testid="ambient" data-color={ambientColor} aria-hidden className="pointer-events-none absolute inset-0"
+                    style={{ background: `radial-gradient(ellipse 75% 70% at 50% 50%, ${ambientColor} 0%, transparent 75%)`, opacity: ambient === 'strong' ? 0.85 : 0.45, filter: 'blur(60px)',
+                        transition: `background ${reducedMotion() ? 8 : 2}s linear` }} />
+            )}
             <video
-                ref={video} className="size-full" playsInline crossOrigin="use-credentials" preload="metadata"
+                ref={video} className="relative size-full" style={{ filter: brightness !== 1 ? `brightness(${brightness})` : undefined }} playsInline crossOrigin="use-credentials" preload="metadata"
                 onPlay={() => { setPlaying(true); sendParty('play'); poke(); }} onPause={() => { setPlaying(false); sendParty('pause'); setControls(true); }}
                 onTimeUpdate={(e) => { const el = e.currentTarget; setTime(el.currentTime); if (el.buffered.length) setBuffered(el.buffered.end(el.buffered.length - 1)); }}
                 onDurationChange={(e) => isFinite(e.currentTarget.duration) && setDuration(e.currentTarget.duration)}
@@ -342,7 +422,43 @@ export default function Player({ file, item, episode, next, prefs: initialPrefs,
                 {start?.subtitles.map((s) => <track key={s.id} id={`sub-${s.id}`} kind="subtitles" src={s.url} srcLang={s.language ?? 'und'} label={s.label} />)}
             </video>
             <style>{`video::cue{line:${100 - prefs.position}%}`}</style>
-            <div className="absolute inset-0" onPointerUp={onTap} />
+            <div className="absolute inset-0 touch-none" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onTap} onPointerCancel={() => { touch.current = null; }} />
+            {boost && <div data-testid="boost" className="pointer-events-none absolute top-20 left-1/2 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1 text-lg font-bold">2× ▶▶</div>}
+            {gesture && (
+                <div className="pointer-events-none absolute top-1/2 left-1/2 flex -translate-1/2 items-center gap-3 rounded-xl bg-black/70 px-4 py-3">
+                    {gesture.kind === 'volume' ? <Volume2 /> : <span className="text-xl">☀</span>}
+                    <div className="h-2 w-32 overflow-hidden rounded bg-white/20" dir="ltr"><div className="h-full bg-white" style={{ width: `${Math.round(gesture.value * 100)}%` }} /></div>
+                </div>
+            )}
+
+            {/* Pause screen */}
+            {pausedLong && (
+                <div data-testid="pause-screen" className="absolute inset-0 z-[5] flex items-center bg-black/75 p-8 md:p-16" onPointerDown={() => setPausedLong(false)}>
+                    <div className="max-w-2xl space-y-4">
+                        <div className="text-sm text-white/60">{t.player.pauseLabel}</div>
+                        <h2 dir="auto" className="text-3xl font-black md:text-5xl">{item.title}</h2>
+                        {episode && <div dir="auto" className="text-xl">S{episode.season} · E{episode.number} {episode.title}</div>}
+                        {item.overview && <p dir="auto" className="line-clamp-4 text-lg text-white/85">{item.overview}</p>}
+                        {item.cast && item.cast.length > 0 && <p dir="auto" className="text-white/60">{item.cast.join('، ')}</p>}
+                        <p className="text-lg"><span className="tabular-nums" dir="ltr">{formatTime(remaining)}</span> {t.visuals.remaining} · <span data-testid="ends-at">{t.visuals.endsAt} {endsAt.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span></p>
+                    </div>
+                </div>
+            )}
+
+            {/* "وين وقفنا؟" recap before continuing a show after a long break */}
+            {showRecap && recap && (
+                <div data-testid="recap" className="absolute inset-0 z-20 flex items-center justify-center bg-black/85 p-6">
+                    <div className="max-w-xl space-y-4 rounded-xl border border-white/10 bg-card/90 p-6">
+                        <h2 className="text-2xl font-bold">{t.visuals.recapTitle}</h2>
+                        <div className="text-sm text-white/60">{t.visuals.lastTime}: S{recap.season} · E{recap.number} {recap.title}</div>
+                        <p dir="auto" className="leading-relaxed">{recap.summary}</p>
+                        <div className="flex gap-2">
+                            <Button autoFocus onClick={() => { setShowRecap(false); video.current?.play().catch(() => {}); }}><Play className="fill-current" /> {t.visuals.continue}</Button>
+                            <Button variant="ghost" onClick={() => { setShowRecap(false); video.current?.play().catch(() => {}); }}>{t.visuals.skip}</Button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {(preparing !== null || (!start && !error)) && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70">
@@ -454,6 +570,15 @@ export default function Player({ file, item, episode, next, prefs: initialPrefs,
                                                 if (hls.current && hls.current.audioTracks.length > 1) hls.current.audioTrack = i;
                                                 else begin({ audio: i, keepTime: true });
                                             }}>{audioIndex === i && <Check />} <span dir="auto">{a.title || a.language || `#${i + 1}`}</span> <span className="ms-auto text-xs opacity-60">{a.codec}</span></DropdownMenuItem>
+                                        ))}
+                                    </>
+                                )}
+                                {heavyVisualsOk() && (
+                                    <>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuLabel>{t.visuals.ambient}</DropdownMenuLabel>
+                                        {(['off', 'soft', 'strong'] as const).map((a) => (
+                                            <DropdownMenuItem key={a} onClick={() => { setAmbient(a); api('/profile/preferences', 'PUT', { settings: { ambient: a } }); }}>{ambient === a && <Check />} {t.visuals[a]}</DropdownMenuItem>
                                         ))}
                                     </>
                                 )}

@@ -1,4 +1,5 @@
 import { Head, router, useForm } from '@inertiajs/react';
+import { PosterWall } from '@/components/movexa/poster-wall';
 import { Lock, Pencil, Plus, Trash2 } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import InputError from '@/components/input-error';
@@ -14,7 +15,7 @@ import type { Profile } from '@/types';
 
 const COLORS = ['#e50914', '#2563eb', '#16a34a', '#f59e0b', '#9333ea', '#db2777', '#0891b2'];
 
-export default function SelectProfile({ profiles, currentId, lockedInKid }: { profiles: Profile[]; currentId: number | null; lockedInKid: boolean }) {
+export default function SelectProfile({ profiles, currentId, lockedInKid, wall = [] }: { profiles: Profile[]; currentId: number | null; lockedInKid: boolean; wall?: { src: string }[] }) {
     const { t, locale } = useT();
     const [target, setTarget] = useState<Profile | null>(null);
     const [manage, setManage] = useState(false);
@@ -36,6 +37,7 @@ export default function SelectProfile({ profiles, currentId, lockedInKid }: { pr
     return (
         <div className="flex min-h-dvh flex-col items-center justify-center gap-10 p-6">
             <Head title={t.whoIsWatching} />
+            <PosterWall posters={wall} />
             <button onClick={() => switchLanguage(locale)} className="absolute end-4 top-4 text-sm text-muted-foreground hover:text-foreground">{t.language}</button>
             <h1 className="text-3xl font-bold md:text-5xl">{t.whoIsWatching}</h1>
             {lockedInKid && <p className="text-sm text-muted-foreground">{t.lockedKid}</p>}

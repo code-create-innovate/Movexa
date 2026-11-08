@@ -1,4 +1,6 @@
 import { Link, router, usePage } from '@inertiajs/react';
+import { useEffect } from 'react';
+import { setTint } from '@/lib/device-class';
 import type { SharedData } from '@/types';
 import { Check, Heart, Play, Plus, ShieldCheck, ThumbsDown, ThumbsUp, Users } from 'lucide-react';
 import { BlockDialog } from '@/components/movexa/block-dialog';
@@ -23,6 +25,7 @@ type Item = Card & { overview: string | null; original_title: string | null; cer
 export default function Title({ item, file, seasons }: { item: Item; file: FileInfo | null; seasons: { id: number; number: number; episodes: Episode[] }[] }) {
     const { t } = useT();
     const { profile, viewAs, auth } = usePage<SharedData>().props;
+    useEffect(() => setTint(item.color), [item.color]);
     const first = file ?? seasons[0]?.episodes[0]?.file ?? null;
     const resumeEp = seasons.flatMap((s) => s.episodes).find((e) => e.file.progress && !e.file.progress.completed);
     const target = resumeEp?.file ?? first;

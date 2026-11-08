@@ -23,6 +23,7 @@ class GenerateThumbnailsJob implements ShouldQueue
     {
         if ($file = MediaFile::find($this->fileId)) {
             $gen->generate($file);
+            app(\App\Modules\Media\Services\ColorService::class)->timeline($file->fresh());
         }
     }
 }

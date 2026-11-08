@@ -16,7 +16,7 @@ const en: typeof ar = {
         preparing: 'Preparing video…', quality: 'Quality', auto: 'Auto', original: 'Original', speed: 'Speed', skipIntro: 'Skip intro',
         nextIn: 'Next episode in', cancel: 'Cancel', playNow: 'Play now', pip: 'Picture in picture', fullscreen: 'Fullscreen', subStyle: 'Subtitle style',
         size: 'Size', color: 'Color', background: 'Background', position: 'Position', uploadSub: 'Upload subtitle', limit: 'Concurrent stream limit reached',
-        method: { direct: 'Direct play', remux: 'Remux', transcode: 'Transcode' }, error: 'Playback failed', back: 'Back',
+        pauseLabel: 'Paused', method: { direct: 'Direct play', remux: 'Remux', transcode: 'Transcode' }, error: 'Playback failed', back: 'Back',
     },
     liveTv: {
         now: 'Now', next: 'Next', favorites: 'Favorites', all: 'All', reconnecting: 'Reconnecting…', latency: 'Latency', viewers: 'viewers',
@@ -32,6 +32,7 @@ const en: typeof ar = {
         legalNote: 'You are responsible for the legality of this source. Use only licensed IPTV subscriptions or a tuner you own.', legalAck: 'I confirm this source is legal and licensed to me',
         refresh: 'Refresh', record: 'Record', recordings: 'Recordings', pretranscode: 'Pre-transcode', pinned: 'pinned', events: 'Security log', recent: 'Recent files',
         maxStreams: 'Stream limit', admin: 'Admin', rematch: 'Fix', intro: 'Intro (seconds)', cpu: 'CPU load', available: 'available', unavailable: 'unavailable',
+        feature: 'Pin to banner',
         securityUpdates: 'Security updates available',
     },
     blocks: {
@@ -52,6 +53,12 @@ const en: typeof ar = {
         offlineNote: 'Saved copies play offline and expire after 30 days unless the device reconnects. If access is revoked they are deleted on the next connection.', expires: 'Expires', countLimit: 'Download limit reached', quota: 'Not enough download quota',
     },
     pick: { button: 'What to watch?', title: 'What should we watch?', another: 'Another one', none: 'Nothing matches your choices. Try fewer filters.', anyType: 'Movie or show', minutes: 'Time available (minutes)', lang: 'Audio or subtitle language', go: 'Pick for me', details: 'Details' },
+    top: { movies: 'Top 10 movies at home', shows: 'Top 10 shows at home' },
+    visuals: {
+        title: 'Viewing settings', intro: 'Movexa intro on sign-in', pauseScreen: 'Pause screen', posterWall: 'Animated poster wall', recap: '"Previously" recap card',
+        ambient: 'Ambient light around the video', off: 'Off', soft: 'Soft', strong: 'Strong', endsAt: 'Ends at', remaining: 'left', recapTitle: 'Previously…', continue: 'Continue', skip: 'Skip',
+        lastTime: 'Last time you watched', minutes: 'min',
+    },
     twoFactor: { title: 'Two-factor authentication', enable: 'Enable', disable: 'Disable', enabled: 'Enabled', scan: 'Add this key to your authenticator app, then enter the code', code: 'Verification code', password: 'Password', verify: 'Verify' },
 };
 export default en;

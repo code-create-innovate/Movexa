@@ -6,7 +6,7 @@ export interface ProfileSettings { intro: boolean; pause_screen: boolean; ambien
 export interface SubPrefs { size: number; color: string; background: number; position: number }
 export interface Card {
     id: number; type: 'movie' | 'show'; title: string; year: number | null; age_rating: number | null; vote: number | null; genres: string[];
-    poster: string | null; backdrop: string | null; progress?: number; file_id?: number; episode?: { season: number; number: number } | null; overview?: string;
+    poster: string | null; backdrop: string | null; color?: string | null; rank?: number; progress?: number; file_id?: number; episode?: { season: number; number: number } | null; overview?: string;
 }
 export interface SharedData {
     viewAs?: boolean;

@@ -23,7 +23,7 @@ class MediaAccessController extends Controller
 {
     private const TYPES = [
         'm3u8' => 'application/vnd.apple.mpegurl', 'm4s' => 'video/iso.segment', 'mp4' => 'video/mp4', 'ts' => 'video/mp2t',
-        'vtt' => 'text/vtt; charset=utf-8', 'jpg' => 'image/jpeg', 'webp' => 'image/webp', 'png' => 'image/png',
+        'vtt' => 'text/vtt; charset=utf-8', 'json' => 'application/json', 'jpg' => 'image/jpeg', 'webp' => 'image/webp', 'png' => 'image/png',
         'mkv' => 'video/x-matroska', 'webm' => 'video/webm', 'm4v' => 'video/mp4', 'mov' => 'video/quicktime', 'avi' => 'video/x-msvideo',
         'mp3' => 'audio/mpeg', 'm4a' => 'audio/mp4', 'aac' => 'audio/aac', 'flac' => 'audio/flac',
     ];
@@ -37,7 +37,13 @@ class MediaAccessController extends Controller
         abort_if(! $claims || ! $user || (int) $claims['u'] !== $user->id, 403);
         $profile = $this->profiles->current();
         abort_if($claims['p'] !== null && $profile?->id !== (int) $claims['p'], 403);
-        abort_if(! $profile, 403);
+        if (! $profile) {
+            // Only exception: "all ages" small posters on the profile picker (logged in, no profile yet).
+            abort_unless($claims['k'] === 'img' && $path === 'poster_small' && $claims['p'] === null, 403);
+            $profile = \App\Modules\Library\Services\Discovery::accountProfile($user->id);
+            $item = \App\Modules\Library\Models\MediaItem::find((int) $claims['i']);
+            abort_unless($item && $item->age_rating === 0, 404);
+        }
 
         // Strict relative path: no traversal, no hidden files.
         abort_unless(preg_match('#^(?:[A-Za-z0-9_\-]+/)?[A-Za-z0-9_\-]+(?:\.[A-Za-z0-9]{1,5})?$#', $path), 404);

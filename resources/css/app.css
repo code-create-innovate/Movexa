@@ -205,3 +205,31 @@ video::cue {
     font-family: 'IBM Plex Sans Arabic', 'IBM Plex Sans', sans-serif;
     unicode-bidi: plaintext;
 }
+
+/* ---- Page tint follows the current title (registered so it transitions smoothly) ---- */
+@property --page-tint {
+    syntax: '<color>';
+    inherits: true;
+    initial-value: #1a0b10;
+}
+:root { transition: --page-tint 1.2s ease; }
+@media (prefers-reduced-motion: reduce) { :root { transition-duration: 4s; } }
+.mx-tinted {
+    background:
+        radial-gradient(ellipse 120% 70% at 50% 0%, color-mix(in srgb, var(--page-tint) 55%, transparent), transparent 70%),
+        var(--background);
+}
+
+/* ---- Poster wall: columns falling slowly, transform-only animation ---- */
+@keyframes mx-fall { from { transform: translate3d(0, -50%, 0); } to { transform: translate3d(0, 0, 0); } }
+.mx-wall-col { animation: mx-fall linear infinite; will-change: transform; }
+.mx-wall-paused .mx-wall-col { animation-play-state: paused; }
+
+/* ---- Intro ---- */
+@keyframes mx-intro-draw { from { stroke-dashoffset: 1600; } to { stroke-dashoffset: 0; } }
+@keyframes mx-intro-glow { 0% { opacity: 0; transform: scale(.85); } 40% { opacity: 1; transform: scale(1); } 100% { opacity: 1; transform: scale(1.06); } }
+.mx-intro-logo path { stroke-dasharray: 1600; animation: mx-intro-draw 1.3s ease-out forwards; }
+.mx-intro-logo { animation: mx-intro-glow 2.6s ease-out forwards; filter: drop-shadow(0 0 40px rgb(229 9 20 / .6)); }
+
+/* ---- Top 10 big rank numbers ---- */
+.mx-rank { font-size: clamp(5rem, 11vw, 9rem); line-height: .8; font-weight: 900; color: var(--background); -webkit-text-stroke: 3px rgb(255 255 255 / .55); letter-spacing: -.08em; }

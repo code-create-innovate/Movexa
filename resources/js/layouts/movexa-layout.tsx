@@ -1,6 +1,7 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { ArrowLeftRight, Ban, Download, Gamepad2, MonitorSmartphone, Film, Globe, Home, House, List, LogOut, Menu, Radio, Search, Settings, Shield, Tv } from 'lucide-react';
+import { ArrowLeftRight, Ban, Sparkles, Download, Gamepad2, MonitorSmartphone, Film, Globe, Home, House, List, LogOut, Menu, Radio, Search, Settings, Shield, Tv } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
+import { MovexaIntro } from '@/components/movexa/intro';
 import { PickDialog } from '@/components/movexa/pick-dialog';
 import { SearchCommand } from '@/components/movexa/search-command';
 import { Button } from '@/components/ui/button';
@@ -56,7 +57,8 @@ export default function MovexaLayout({ title, children, transparent = false }: {
     ];
 
     return (
-        <div className="min-h-dvh">
+        <div className="mx-tinted min-h-dvh">
+            {profile && !viewAs && <MovexaIntro enabled={profile.settings?.intro !== false} profileId={profile.id} />}
             <Head title={title} />
             <header className={cn('fixed inset-x-0 top-0 z-40 transition-colors', scrolled || !transparent ? 'bg-background/95 shadow-sm backdrop-blur' : 'bg-linear-to-b from-black/80 to-transparent')}>
                 <div className="flex h-16 items-center gap-4 px-4 md:px-10">
@@ -101,6 +103,7 @@ export default function MovexaLayout({ title, children, transparent = false }: {
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem asChild><Link href="/profiles"><ArrowLeftRight /> {t.switchProfile}</Link></DropdownMenuItem>
                                     {!profile.is_kid && <DropdownMenuItem asChild><Link href="/settings/profile"><Settings /> {t.settings}</Link></DropdownMenuItem>}
+                                    <DropdownMenuItem asChild><Link href="/settings/playback"><Sparkles /> {t.visuals.title}</Link></DropdownMenuItem>
                                     {!profile.is_kid && !viewAs && <DropdownMenuItem asChild><Link href="/blocks"><Ban /> {t.blocks.title}</Link></DropdownMenuItem>}
                                     <DropdownMenuItem asChild><Link href="/live"><Tv /> {t.live}</Link></DropdownMenuItem>
                                     <DropdownMenuItem asChild><Link href="/downloads"><Download /> {t.devices.downloads}</Link></DropdownMenuItem>

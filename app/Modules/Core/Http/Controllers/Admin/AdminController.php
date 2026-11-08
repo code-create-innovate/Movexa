@@ -109,7 +109,7 @@ class AdminController extends Controller
     public function matches(Request $request)
     {
         return Inertia::render('admin/matches', [
-            'files' => MediaFile::with('item:id,title,year,type,tmdb_id,age_rating', 'episode.season')->where('status', 'ready')->latest()->paginate(50)
+            'files' => MediaFile::with('item:id,title,year,type,tmdb_id,age_rating,featured', 'episode.season')->where('status', 'ready')->latest()->paginate(50)
                 ->through(fn ($f) => ['id' => $f->id, 'name' => $f->original_name, 'item' => $f->item, 'season' => $f->episode?->season?->number, 'episode' => $f->episode?->number, 'sanitized' => $f->sanitized, 'linked' => $f->linked]),
         ]);
     }
@@ -131,6 +131,17 @@ class AdminController extends Controller
             'title' => ['required', 'max:250'], 'title_ar' => ['nullable', 'max:250'], 'overview' => ['nullable', 'max:5000'], 'overview_ar' => ['nullable', 'max:5000'],
             'year' => ['nullable', 'integer'], 'age_rating' => ['nullable', 'integer', 'between:0,18'], 'genres' => ['nullable', 'array'],
         ]) + ['match_locked' => true]);
+
+        return back();
+    }
+
+    /** Pin to the home banner; a silent local preview clip is generated in the background. */
+    public function feature(MediaItem $item)
+    {
+        $item->update(['featured' => ! $item->featured]);
+        if ($item->featured && ! $item->preview_path) {
+            \App\Modules\Media\Jobs\GeneratePreviewJob::dispatch($item->id);
+        }
 
         return back();
     }

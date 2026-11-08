@@ -2,6 +2,7 @@ import { Link } from '@inertiajs/react';
 import { Film, Play } from 'lucide-react';
 import { Carousel, CarouselItem } from '@/components/ui/carousel';
 import { Progress } from '@/components/ui/progress';
+import { setTint } from '@/lib/device-class';
 import { cn } from '@/lib/utils';
 import type { Card } from '@/types';
 
@@ -19,7 +20,7 @@ export function Poster({ item, className }: { item: Card; className?: string }) 
 export function MediaCard({ item }: { item: Card }) {
     const href = item.file_id && item.progress !== undefined ? `/watch/${item.file_id}` : item.file_id && item.episode ? `/watch/${item.file_id}` : `/title/${item.id}`;
     return (
-        <Link href={href} className="group block rounded-md transition-transform focus-visible:scale-105 md:hover:scale-105" aria-label={item.title}>
+        <Link href={href} onFocus={() => setTint(item.color)} onPointerEnter={() => setTint(item.color)} className="group block rounded-md transition-transform focus-visible:scale-105 md:hover:scale-105" aria-label={item.title}>
             <div className="relative">
                 <Poster item={item} />
                 {item.file_id && (
@@ -39,7 +40,24 @@ export function MediaCard({ item }: { item: Card }) {
     );
 }
 
-export function MediaRow({ title, items }: { title: string; items: Card[] }) {
+export function MediaRow({ title, items, top = false }: { title: string; items: (Card & { rank?: number })[]; top?: boolean }) {
+    if (top) {
+        return (
+            <section className="my-6" data-testid="top10">
+                <h2 dir="auto" className="mb-2 px-4 text-lg font-bold md:px-10 md:text-xl">{title}</h2>
+                <Carousel label={title}>
+                    {items.map((i) => (
+                        <CarouselItem key={i.id} className="basis-[62%] sm:basis-[38%] md:basis-[28%] lg:basis-[22%] xl:basis-[18%]">
+                            <div className="flex items-end">
+                                <span className="mx-rank select-none" aria-label={`#${i.rank}`}>{i.rank}</span>
+                                <div className="-ms-4 w-[58%] shrink-0"><MediaCard item={i} /></div>
+                            </div>
+                        </CarouselItem>
+                    ))}
+                </Carousel>
+            </section>
+        );
+    }
     return (
         <section className="my-6">
             <h2 dir="auto" className="mb-2 px-4 text-lg font-bold md:px-10 md:text-xl">{title}</h2>

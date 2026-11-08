@@ -19,6 +19,10 @@ class MediaFixtures
             'mp4' => [...$src, '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest'],
             'mkv-hevc-dts' => [...$src, '-c:v', 'libx265', '-preset', 'ultrafast', '-x265-params', 'log-level=error', '-c:a', 'dca', '-strict', '-2', '-ar', '48000', '-shortest'],
             'avi' => [...$src, '-c:v', 'mpeg4', '-q:v', '5', '-c:a', 'libmp3lame', '-shortest'],
+            // three solid color segments (red → green → blue) — for the ambient-light test
+            'colors' => ['-f', 'lavfi', '-i', 'color=c=red:s=320x180:r=24:d='.($seconds / 3), '-f', 'lavfi', '-i', 'color=c=green:s=320x180:r=24:d='.($seconds / 3),
+                '-f', 'lavfi', '-i', 'color=c=blue:s=320x180:r=24:d='.($seconds / 3), '-f', 'lavfi', '-i', "sine=frequency=440:duration={$seconds}",
+                '-filter_complex', '[0:v][1:v][2:v]concat=n=3:v=1:a=0[v]', '-map', '[v]', '-map', '3:a', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest'],
             'mkv-2audio' => [...$src, '-f', 'lavfi', '-i', "sine=frequency=880:duration={$seconds}", '-map', '0:v', '-map', '1:a', '-map', '2:a', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-metadata:s:a:0', 'language=ara', '-metadata:s:a:1', 'language=eng', '-shortest'],
             default => throw new RuntimeException("unknown fixture {$kind}"),
         };

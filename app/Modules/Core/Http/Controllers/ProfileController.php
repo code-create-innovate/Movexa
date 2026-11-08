@@ -23,6 +23,7 @@ class ProfileController extends Controller
             'profiles' => $request->user()->profiles()->orderBy('id')->get(),
             'currentId' => $current?->id,
             'lockedInKid' => (bool) $current?->is_kid,
+            'wall' => app(\App\Modules\Library\Services\Discovery::class)->wallBeforeProfile($request->user()->id),
         ]);
     }
 
@@ -106,13 +107,26 @@ class ProfileController extends Controller
             'subtitle_prefs.position' => ['nullable', 'integer', 'between:0,40'],
             'preferred_audio_lang' => ['nullable', 'string', 'max:8'],
             'preferred_subtitle_lang' => ['nullable', 'string', 'max:8'],
+            'settings' => ['nullable', 'array'],
+            'settings.intro' => ['boolean'], 'settings.pause_screen' => ['boolean'], 'settings.poster_wall' => ['boolean'], 'settings.recap' => ['boolean'],
+            'settings.ambient' => ['in:off,soft,strong'],
         ]);
+        if (isset($data['settings'])) {
+            $data['settings'] = array_merge($profile->settings ?? [], array_intersect_key($data['settings'], \App\Modules\Core\Models\Profile::DEFAULT_SETTINGS));
+        }
         $profile->fill($data)->save();
         if (isset($data['locale']) && ! $profile->is_kid) {
             $request->user()->forceFill(['locale' => $data['locale']])->save();
         }
 
-        return back();
+        return $request->expectsJson() ? response()->json(['ok' => true, 'settings' => $profile->allSettings()]) : back();
+    }
+
+    public function playbackSettings()
+    {
+        abort_unless($this->context->current(), 409);
+
+        return Inertia::render('settings/playback', ['settings' => $this->context->current()->allSettings()]);
     }
 
     private function validated(Request $request): array

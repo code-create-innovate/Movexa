@@ -8,11 +8,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PlaybackSession extends Model
 {
-    protected $fillable = ['uuid', 'user_id', 'profile_id', 'media_file_id', 'channel_id', 'method', 'client', 'last_seen_at'];
+    protected $fillable = ['uuid', 'user_id', 'profile_id', 'media_file_id', 'channel_id', 'method', 'client', 'last_seen_at', 'counted'];
 
     protected function casts(): array
     {
-        return ['last_seen_at' => 'datetime'];
+        return ['last_seen_at' => 'datetime', 'counted' => 'boolean'];
     }
 
     public function user(): BelongsTo

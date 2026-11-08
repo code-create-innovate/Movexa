@@ -19,7 +19,7 @@ $user->profiles()->create(['name' => 'Othman', 'avatar_color' => '#2563eb']);
 
 $file = MediaFixtures::readyMovie(config('movexa.paths.library'), ['title' => 'Test Movie', 'title_ar' => 'فيلم تجريبي', 'year' => 2024, 'age_rating' => 0, 'overview_ar' => 'فيلم للاختبار.'], 'mp4');
 // make it longer for seeking
-MediaFixtures::make($file->path, 'mp4', 40);
+MediaFixtures::make($file->path, 'colors', 40);
 $file->update(['duration' => 40.0, 'size' => filesize($file->path)]);
 $dir = config('movexa.paths.library').'/.subtitles/'.$file->id;
 @mkdir($dir, 0755, true);
@@ -28,4 +28,8 @@ file_put_contents("$dir/en.vtt", "WEBVTT\n\n1\n00:00:00.000 --> 00:00:40.000\nHe
 Subtitle::create(['media_file_id' => $file->id, 'language' => 'ar', 'label' => 'العربية', 'path' => "$dir/ar.vtt", 'source' => 'external']);
 Subtitle::create(['media_file_id' => $file->id, 'language' => 'en', 'label' => 'English', 'path' => "$dir/en.vtt", 'source' => 'external']);
 app(ThumbnailGenerator::class)->generate($file->fresh());
+app(App\Modules\Media\Services\ColorService::class)->timeline($file->fresh());
+// A test channel: a local file "broadcast" as a live channel (test-only source type).
+$src = App\Modules\LiveTV\Models\LiveSource::create(['name' => 'Test', 'type' => 'm3u', 'url' => 'http://example.invalid/list.m3u', 'max_streams' => 2, 'legal_ack' => true]);
+App\Modules\LiveTV\Models\Channel::create(['live_source_id' => $src->id, 'name' => 'Test Channel', 'number' => '1', 'category' => 'news', 'stream_url' => 'file://'.$file->path]);
 echo json_encode(['item' => $file->media_item_id, 'file' => $file->id]), "\n";

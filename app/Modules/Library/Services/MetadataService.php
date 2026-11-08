@@ -79,6 +79,7 @@ class MetadataService
         $item->poster_path = $this->download($ar['poster_path'] ?? $en['poster_path'] ?? null, 'w500', "items/{$item->id}/poster") ?? $item->poster_path;
         $item->backdrop_path = $this->download($en['backdrop_path'] ?? null, 'w1280', "items/{$item->id}/backdrop") ?? $item->backdrop_path;
         $item->save();
+        app(\App\Modules\Media\Services\ColorService::class)->refreshItem($item);
 
         if ($kind === 'tv') {
             foreach ($item->seasons as $season) {
@@ -88,6 +89,7 @@ class MetadataService
                 foreach ($s['episodes'] ?? [] as $e) {
                     Episode::where('season_id', $season->id)->where('number', $e['episode_number'])->update([
                         'title' => $e['name'] ?? null, 'title_ar' => $arEps[$e['episode_number']]['name'] ?? null, 'overview' => $e['overview'] ?? null,
+                        'overview_ar' => ($arEps[$e['episode_number']]['overview'] ?? null) ?: null,
                     ]);
                 }
             }
