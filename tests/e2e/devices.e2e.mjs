@@ -94,7 +94,8 @@ try {
     step('download prepared on server and saved on device');
 
     await phoneCtx.setOffline(true);
-    await phone.goto(`${BASE}/offline.html#${uuid}`);
+    await phone.goto(`${BASE}/offline.html`);
+    await phone.locator(`button[data-uuid="${uuid}"]`).click(); // a real tap (mobile autoplay needs a gesture)
     await phone.waitForFunction(() => { const v = document.querySelector('video'); return v && v.currentTime > 1; }, null, { timeout: 20000 });
     step('plays with the network OFF (OPFS + service worker)');
     await phone.goto(`${BASE}/home`).catch(() => {});
