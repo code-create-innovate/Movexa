@@ -85,6 +85,15 @@ class AdminController extends Controller
         return back();
     }
 
+    public function storeUser(Request $request)
+    {
+        $d = $request->validate(['name' => ['required', 'max:120'], 'email' => ['required', 'email', 'unique:users,email'], 'password' => ['required', 'min:10'], 'is_admin' => ['boolean']]);
+        $user = User::create($d);
+        $user->profiles()->create(['name' => $user->name]);
+
+        return back();
+    }
+
     public function updateUser(Request $request, User $user)
     {
         $data = $request->validate(['is_admin' => ['boolean'], 'max_concurrent_streams' => ['nullable', 'integer', 'between:1,20']]);

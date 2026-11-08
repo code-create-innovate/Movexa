@@ -21,6 +21,11 @@ const sidebarNavItems: NavItem[] = [
         url: '/settings/appearance',
         icon: null,
     },
+    {
+        title: '2FA',
+        url: '/settings/two-factor',
+        icon: null,
+    },
 ];
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {

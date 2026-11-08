@@ -13,7 +13,7 @@ interface ResetPasswordProps {
     email: string;
 }
 
-interface ResetPasswordForm {
+type ResetPasswordForm = {
     token: string;
     email: string;
     password: string;

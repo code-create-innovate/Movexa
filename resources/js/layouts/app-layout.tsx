@@ -1,13 +1,8 @@
-import AppLayoutTemplate from '@/layouts/app/app-sidebar-layout';
-import { type BreadcrumbItem } from '@/types';
+import type { ReactNode } from 'react';
+import MovexaLayout from '@/layouts/movexa-layout';
+import type { BreadcrumbItem } from '@/types';
 
-interface AppLayoutProps {
-    children: React.ReactNode;
-    breadcrumbs?: BreadcrumbItem[];
+/** Starter-kit settings pages render inside the Movexa shell. */
+export default function AppLayout({ children, breadcrumbs }: { children: ReactNode; breadcrumbs?: BreadcrumbItem[] }) {
+    return <MovexaLayout title={breadcrumbs?.[breadcrumbs.length - 1]?.title}>{children}</MovexaLayout>;
 }
-
-export default ({ children, breadcrumbs, ...props }: AppLayoutProps) => (
-    <AppLayoutTemplate breadcrumbs={breadcrumbs} {...props}>
-        {children}
-    </AppLayoutTemplate>
-);

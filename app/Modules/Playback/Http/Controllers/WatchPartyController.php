@@ -36,7 +36,7 @@ class WatchPartyController extends Controller
         $party = $this->party($request, $uuid);
         $data = $request->validate(['action' => ['required', 'in:play,pause,seek'], 'position' => ['required', 'numeric', 'min:0']]);
         $party->update(['position' => $data['position'], 'playing' => $data['action'] === 'play' || ($data['action'] === 'seek' && $party->playing), 'state_at' => now()]);
-        $payload = $this->payload($party) + ['action' => $data['action'], 'by' => $request->attributes->get('profile')->id];
+        $payload = $this->payload($party) + ['action' => $data['action'], 'by' => mb_substr((string) $request->input('client', ''), 0, 40)];
         rescue(fn () => broadcast(new PartyStateChanged($party->uuid, $payload)), report: false);
 
         return $payload;

@@ -14,6 +14,20 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => auth()->check() ? redirect()->route('home') : redirect()->route('login'));
 
+// Language switch (saved on the account / profile when logged in)
+Route::get('locale/{lang}', function (string $lang) {
+    abort_unless(in_array($lang, ['ar', 'en'], true), 404);
+    session(['locale' => $lang]);
+    if ($user = auth()->user()) {
+        $profile = app(\App\Modules\Core\Services\ProfileContext::class)->current();
+        $profile ? $profile->update(['locale' => $lang]) : null;
+        $profile?->is_kid || $user->forceFill(['locale' => $lang])->save();
+    }
+    $back = (string) request('back', '/');
+
+    return redirect(str_starts_with($back, '/') && ! str_starts_with($back, '//') ? $back : '/');
+})->name('locale');
+
 // HomeCore SSO (OIDC + PKCE)
 Route::get('auth/homecore', [OidcController::class, 'redirect'])->name('oidc.redirect');
 Route::get('auth/homecore/callback', [OidcController::class, 'callback'])->name('oidc.callback');
@@ -72,6 +86,7 @@ Route::middleware('auth')->group(function () {
             Route::post('libraries', [AdminController::class, 'storeLibrary'])->name('libraries.store');
             Route::delete('libraries/{library}', [AdminController::class, 'destroyLibrary'])->name('libraries.destroy');
             Route::post('libraries/{library}/scan', [AdminController::class, 'scan'])->name('libraries.scan');
+            Route::post('users', [AdminController::class, 'storeUser'])->name('users.store');
             Route::patch('users/{user}', [AdminController::class, 'updateUser'])->name('users.update');
             Route::get('matches', [AdminController::class, 'matches'])->name('matches');
             Route::post('files/{file}/rematch', [AdminController::class, 'rematch'])->name('files.rematch');
