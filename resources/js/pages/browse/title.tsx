@@ -2,6 +2,7 @@ import { Link, router, usePage } from '@inertiajs/react';
 import type { SharedData } from '@/types';
 import { Check, Heart, Play, Plus, ShieldCheck, ThumbsDown, ThumbsUp, Users } from 'lucide-react';
 import { BlockDialog } from '@/components/movexa/block-dialog';
+import { DownloadDialog } from '@/components/movexa/download-dialog';
 import { Poster } from '@/components/movexa/media-row';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -21,7 +22,7 @@ type Item = Card & { overview: string | null; original_title: string | null; cer
 
 export default function Title({ item, file, seasons }: { item: Item; file: FileInfo | null; seasons: { id: number; number: number; episodes: Episode[] }[] }) {
     const { t } = useT();
-    const { profile, viewAs } = usePage<SharedData>().props;
+    const { profile, viewAs, auth } = usePage<SharedData>().props;
     const first = file ?? seasons[0]?.episodes[0]?.file ?? null;
     const resumeEp = seasons.flatMap((s) => s.episodes).find((e) => e.file.progress && !e.file.progress.completed);
     const target = resumeEp?.file ?? first;
@@ -58,6 +59,7 @@ export default function Title({ item, file, seasons }: { item: Item; file: FileI
                             {target && (
                                 <Button size="lg" variant="outline" onClick={() => router.post(`/party/${target.id}`)}><Users /> {t.watchParty}</Button>
                             )}
+                            {target && auth.user?.downloads_enabled && !viewAs && <DownloadDialog file={target} />}
                             {!profile?.is_kid && !viewAs && (
                                 <BlockDialog targets={[
                                     { type: 'item', id: item.id, label: `${t.blocks.thisTitle}: ${item.title}` },

@@ -43,7 +43,7 @@ class HandleInertiaRequests extends Middleware
             'name' => config('app.name'),
             'locale' => app()->getLocale(),
             'auth' => [
-                'user' => $user?->only('id', 'name', 'email', 'is_admin', 'locale'),
+                'user' => $user?->only('id', 'name', 'email', 'is_admin', 'locale', 'downloads_enabled'),
             ],
             'viewAs' => app(\App\Modules\Core\Services\ProfileContext::class)->viewingAs(),
             'profile' => $profile ? $profile->only('id', 'name', 'avatar_color', 'is_kid', 'max_age_rating', 'locale', 'subtitle_prefs') + ['settings' => $profile->allSettings()] : null,

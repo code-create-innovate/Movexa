@@ -9,7 +9,6 @@ use App\Modules\Core\Http\Middleware\SetLocale;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
-use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -27,7 +26,8 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Modules\Core\Http\Middleware\ViewAsReadOnly::class,
             \App\Modules\Devices\Http\Middleware\DeviceSessionGuard::class,
             HandleInertiaRequests::class,
-            AddLinkHeadersForPreloadedAssets::class,
+            // (No AddLinkHeadersForPreloadedAssets: the HTML already has <link rel=modulepreload>, and a long
+            //  Link header + CSP overflowed nginx's FastCGI header buffer → 502.)
             SecurityHeaders::class,
         ]);
         $middleware->api(append: [SecurityHeaders::class]);

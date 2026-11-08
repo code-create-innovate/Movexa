@@ -15,6 +15,6 @@ class RemoteDevice extends Model
 
     public function online(): bool
     {
-        return $this->state_at && $this->state_at->gt(now()->subSeconds(20));
+        return $this->state_at && $this->state_at->gt(now()->subSeconds(8)); // players report every 2 s
     }
 }

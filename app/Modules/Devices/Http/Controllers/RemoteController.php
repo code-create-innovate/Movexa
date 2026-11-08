@@ -31,7 +31,7 @@ class RemoteController extends Controller
         $d = $request->validate(['uuid' => ['nullable', 'uuid'], 'name' => ['nullable', 'string', 'max:120']]);
         $device = ! empty($d['uuid']) ? RemoteDevice::where('uuid', $d['uuid'])->where('user_id', $request->user()->id)->first() : null;
         $device ??= new RemoteDevice(['uuid' => (string) Str::uuid(), 'user_id' => $request->user()->id]);
-        $device->fill(['name' => $d['name'] ?: \App\Modules\Devices\Models\Device::nameFromAgent($request->userAgent()), 'profile_id' => $request->attributes->get('profile')->id])->save();
+        $device->fill(['name' => ($d['name'] ?? null) ?: \App\Modules\Devices\Models\Device::nameFromAgent($request->userAgent()), 'profile_id' => $request->attributes->get('profile')->id])->save();
 
         return ['uuid' => $device->uuid, 'last_seq' => $device->last_seq];
     }

@@ -1,6 +1,7 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { ArrowLeftRight, Ban, Film, Globe, Home, House, List, LogOut, Menu, Radio, Search, Settings, Shield, Tv } from 'lucide-react';
+import { ArrowLeftRight, Ban, Download, Gamepad2, MonitorSmartphone, Film, Globe, Home, House, List, LogOut, Menu, Radio, Search, Settings, Shield, Tv } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
+import { PickDialog } from '@/components/movexa/pick-dialog';
 import { SearchCommand } from '@/components/movexa/search-command';
 import { Button } from '@/components/ui/button';
 import { useTvNavigation } from '@/hooks/use-tv-navigation';
@@ -87,6 +88,7 @@ export default function MovexaLayout({ title, children, transparent = false }: {
                         {homecore.url && (
                             <Button asChild variant="ghost" size="sm" className="hidden lg:inline-flex"><a href={homecore.url}><House className="size-4" /> {t.backToHomecore}</a></Button>
                         )}
+                        {profile && !viewAs && <PickDialog />}
                         <Button variant="ghost" size="icon" onClick={() => setSearchOpen(true)} aria-label={t.search}><Search /></Button>
                         <Button variant="ghost" size="icon" onClick={() => switchLanguage(locale)} aria-label={t.language} title={t.language}><Globe /></Button>
                         {profile && (
@@ -101,6 +103,9 @@ export default function MovexaLayout({ title, children, transparent = false }: {
                                     {!profile.is_kid && <DropdownMenuItem asChild><Link href="/settings/profile"><Settings /> {t.settings}</Link></DropdownMenuItem>}
                                     {!profile.is_kid && !viewAs && <DropdownMenuItem asChild><Link href="/blocks"><Ban /> {t.blocks.title}</Link></DropdownMenuItem>}
                                     <DropdownMenuItem asChild><Link href="/live"><Tv /> {t.live}</Link></DropdownMenuItem>
+                                    <DropdownMenuItem asChild><Link href="/downloads"><Download /> {t.devices.downloads}</Link></DropdownMenuItem>
+                                    <DropdownMenuItem asChild><Link href="/remote"><Gamepad2 /> {t.devices.remote}</Link></DropdownMenuItem>
+                                    <DropdownMenuItem asChild><Link href="/devices"><MonitorSmartphone /> {t.devices.myDevices}</Link></DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem onClick={() => router.post('/logout')}><LogOut /> {t.logout}</DropdownMenuItem>
                                 </DropdownMenuContent>

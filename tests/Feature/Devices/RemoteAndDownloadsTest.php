@@ -34,7 +34,8 @@ class RemoteAndDownloadsTest extends TestCase
         $a = $this->cmd($tv)->assertOk()->json('seq');
         $b = $this->cmd($tv, ['action' => 'seek', 'value' => 42])->assertOk()->json('seq');
         $this->assertSame($a + 1, $b);
-        Event::assertDispatched(RemoteCommand::class, fn ($e) => $e->command['action'] === 'seek' && $e->command['value'] === 42 && $e->command['expires_at'] > now()->getTimestampMs());
+        Event::assertDispatched(RemoteCommand::class, fn ($e) => $e->command['action'] === 'seek' && $e->command['value'] === 42 && $e->command['expires_at'] > now()->getTimestampMs()
+            && $e->broadcastWith()['seq'] === $b); // flat payload as the player expects
 
         $nonce = 'same-nonce';
         $this->cmd($tv, ['nonce' => $nonce])->assertOk();

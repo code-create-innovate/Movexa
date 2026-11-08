@@ -21,7 +21,10 @@ interface LoginProps {
     canResetPassword: boolean;
 }
 
+import { useT } from '@/lib/i18n';
+
 export default function Login({ status, canResetPassword }: LoginProps) {
+    const { locale } = useT();
     const { data, setData, post, processing, errors, reset } = useForm<LoginForm>({
         email: '',
         password: '',
@@ -97,6 +100,8 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                     </TextLink>
                 </div>
             </form>
+
+            <a href="/tv" className="text-muted-foreground text-center text-sm underline-offset-4 hover:underline">📺 {locale === 'ar' ? 'الدخول على التلفزيون برمز QR' : 'Sign in on a TV with a QR code'}</a>
 
             {status && <div className="mb-4 text-center text-sm font-medium text-green-600">{status}</div>}
         </AuthLayout>

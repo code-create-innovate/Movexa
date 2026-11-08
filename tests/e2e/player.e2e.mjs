@@ -11,7 +11,7 @@ const step = (m) => console.log('✓', m);
 const fail = (m) => { console.error('✗', m); process.exit(1); };
 
 // NGINX=1: go through the real nginx on :8088 (movexa.lan → 127.0.0.1, local CA accepted).
-const browser = await chromium.launch(process.env.NGINX ? { args: ['--host-resolver-rules=MAP movexa.lan 127.0.0.1', '--no-proxy-server'] } : {});
+const browser = await chromium.launch(process.env.NGINX ? { args: ['--host-resolver-rules=MAP movexa.lan 127.0.0.1', '--no-proxy-server', '--ignore-certificate-errors'] } : {});
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, ignoreHTTPSErrors: !!process.env.NGINX });
 page.on('pageerror', (e) => console.error('pageerror', e.message));
 try {
@@ -80,6 +80,7 @@ try {
     await page.screenshot({ path: `${SHOTS}/e2e-player.png` });
 
     // Progress heartbeat saved the position → the title page now offers "Resume"
+    await v.evaluate((el) => { el.currentTime = 10; }); // stay well below the 92% "finished" mark
     await page.waitForTimeout(5500);
     await page.goto(`${BASE}/title/${ITEM}`);
     await page.getByRole('link', { name: 'استكمال' }).waitFor({ timeout: 10000 });

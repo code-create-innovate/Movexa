@@ -14,6 +14,12 @@ class PartyStateChanged implements ShouldBroadcastNow
         return [new PresenceChannel('party.'.$this->party)];
     }
 
+    /** Flat payload: the client reads the fields directly. */
+    public function broadcastWith(): array
+    {
+        return $this->state;
+    }
+
     public function broadcastAs(): string
     {
         return 'state';

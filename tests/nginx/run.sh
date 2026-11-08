@@ -26,7 +26,7 @@ export APP_ENV=production APP_DEBUG=false APP_URL=https://movexa.lan:8088 DB_CON
   BROADCAST_CONNECTION=reverb REVERB_APP_ID=movexa REVERB_APP_KEY=mxkey REVERB_APP_SECRET=mxsecret \
   REVERB_HOST=movexa.lan REVERB_PORT=8088 REVERB_SCHEME=https REVERB_SERVER_HOST=127.0.0.1 REVERB_SERVER_PORT=8080 \
   REVERB_CA_BUNDLE="$W/cert/ca.pem" MOVEXA_DATA_ROOT="$W/data" MOVEXA_SERVE_MODE=xaccel MOVEXA_SANDBOX=unshare \
-  MOVEXA_SCANNER=clamd MOVEXA_REQUIRE_SCANNER=false MOVEXA_HWACCEL=none LOG_CHANNEL=single
+  MOVEXA_SCANNER=clamd MOVEXA_REQUIRE_SCANNER=false MOVEXA_HWACCEL=none LOG_CHANNEL=single MOVEXA_STREAMS_PER_USER=10
 for d in inbox library quarantine cache images uploads; do export "MOVEXA_${d^^}=$W/data/$d"; mkdir -p "$W/data/$d"; done
 touch "$DB_DATABASE"
 php tests/e2e/seed.php > "$W/ids.json" 2>"$W/logs/seed.log" || { cat "$W/logs/seed.log"; exit 1; }
@@ -99,6 +99,8 @@ try { Illuminate\Support\Facades\Broadcast::connection("reverb")->broadcast(["te
 # 7. browser: login, play (X-Accel + Range), HLS, subtitles, signed URLs carry the port (relative), CSP wss
 if node -e "require('playwright')" 2>/dev/null; then
   BASE=https://movexa.lan:8088 ITEM=$ITEM SHOTS=$W NGINX=1 node tests/e2e/player.e2e.mjs && ok "Playwright E2E through nginx :8088" || ko "Playwright through nginx"
+  FILE=$(sed -E 's/.*"file":([0-9]+).*/\1/' "$W/ids.json" | tail -1)
+  BASE=https://movexa.lan:8088 FILE=$FILE ITEM=$ITEM NGINX=1 REMOTE=1 node tests/e2e/devices.e2e.mjs && ok "QR sign-in, phone remote over wss://…:8088, offline download" || ko "devices E2E through nginx"
 fi
 grep -q "X-Accel" "$W/logs/movexa.lan.log" 2>/dev/null; true
 echo "passed: $PASS  failed: $FAIL"

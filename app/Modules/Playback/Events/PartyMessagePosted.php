@@ -14,6 +14,12 @@ class PartyMessagePosted implements ShouldBroadcastNow
         return [new PresenceChannel('party.'.$this->party)];
     }
 
+    /** Flat payload: the client reads the fields directly. */
+    public function broadcastWith(): array
+    {
+        return $this->message;
+    }
+
     public function broadcastAs(): string
     {
         return 'message';

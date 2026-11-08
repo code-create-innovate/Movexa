@@ -33,3 +33,10 @@ export async function loadThumbnails(vttUrl: string): Promise<ThumbCue[]> {
     }
     return cues;
 }
+
+export type RemoteCmd = { seq: number; action: string; value: unknown; expires_at: number };
+
+/** Remote commands: apply only if newer than the last applied sequence and not expired (stale/duplicate → ignored). */
+export function acceptRemoteCommand(lastSeq: number, cmd: RemoteCmd, now = Date.now()): boolean {
+    return Number.isFinite(cmd.seq) && cmd.seq > lastSeq && cmd.expires_at > now;
+}

@@ -14,6 +14,12 @@ class RemoteCommand implements ShouldBroadcastNow
         return [new PrivateChannel('remote.'.$this->device)];
     }
 
+    /** Flat payload: the client reads the fields directly. */
+    public function broadcastWith(): array
+    {
+        return $this->command;
+    }
+
     public function broadcastAs(): string
     {
         return 'command';

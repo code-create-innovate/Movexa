@@ -17,7 +17,7 @@ type Props = {
     transcodes: { id: number; title: string; mode: string; profile: string; status: string; progress: number; encoder: string | null; size: number; pinned: boolean; error: string | null }[];
     top: { title: string; plays: number }[];
     libraries: { id: number; name: string; type: string; path: string; source: string; items_count: number; last_scanned_at: string | null }[];
-    users: { id: number; name: string; email: string; is_admin: boolean; max_concurrent_streams: number | null; profiles_count: number }[];
+    users: { id: number; name: string; email: string; is_admin: boolean; max_concurrent_streams: number | null; profiles_count: number; downloads_enabled: boolean; downloads_quota_mb: number; downloads_max: number }[];
     limits: { streams_per_user: number; max_transcodes: number };
 };
 
@@ -106,6 +106,9 @@ export default function Dashboard(p: Props) {
                             <td><label className="flex items-center gap-1">{t.adminUi.maxStreams}
                                 <input type="number" min={1} max={20} className="w-14 rounded border bg-background px-1" defaultValue={u.max_concurrent_streams ?? p.limits.streams_per_user}
                                     onBlur={(e) => router.patch(`/admin/users/${u.id}`, { max_concurrent_streams: Number(e.target.value) }, { preserveScroll: true })} /></label></td>
+                            <td><label className="flex items-center gap-1"><input type="checkbox" checked={u.downloads_enabled} onChange={(e) => router.patch(`/admin/users/${u.id}`, { downloads_enabled: e.target.checked }, { preserveScroll: true })} /> {t.devices.downloads}</label></td>
+                            <td><label className="flex items-center gap-1">MB <input type="number" min={100} className="w-20 rounded border bg-background px-1" defaultValue={u.downloads_quota_mb} onBlur={(e) => router.patch(`/admin/users/${u.id}`, { downloads_quota_mb: Number(e.target.value) }, { preserveScroll: true })} /></label></td>
+                            <td><label className="flex items-center gap-1"># <input type="number" min={1} className="w-14 rounded border bg-background px-1" defaultValue={u.downloads_max} onBlur={(e) => router.patch(`/admin/users/${u.id}`, { downloads_max: Number(e.target.value) }, { preserveScroll: true })} /></label></td>
                         </tr>
                     ))}
                 </tbody></table>

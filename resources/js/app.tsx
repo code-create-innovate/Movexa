@@ -32,6 +32,6 @@ createInertiaApp({
 
 initializeTheme();
 
-if ('serviceWorker' in navigator && location.protocol === 'https:') {
+if ('serviceWorker' in navigator && window.isSecureContext) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
 }

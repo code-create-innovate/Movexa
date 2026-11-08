@@ -4,7 +4,7 @@ import {
     ArrowLeft, ArrowRight, Captions, Check, Maximize, MessageSquare, Minimize, Pause, PictureInPicture2, Play, RotateCcw, RotateCw, Settings, SkipForward, Upload, Users, Volume2, VolumeX,
 } from 'lucide-react';
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { detectCaps, isApple, loadThumbnails, type ThumbCue } from '@/components/movexa/player-utils';
+import { acceptRemoteCommand, detectCaps, isApple, loadThumbnails, type RemoteCmd, type ThumbCue } from '@/components/movexa/player-utils';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
@@ -123,10 +123,13 @@ export default function Player({ file, item, episode, next, prefs: initialPrefs,
         return () => { v.removeEventListener('loadedmetadata', onMeta); };
     }, [start]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Stop the playback session only when leaving the player (a quality/audio switch keeps the same session).
+    const sessionRef = useRef<string | null>(null);
+    sessionRef.current = start?.session ?? sessionRef.current;
     useEffect(() => () => {
         hls.current?.destroy();
-        if (start) fetch(`/playback/session/${start.session}/stop`, { method: 'POST', keepalive: true, credentials: 'same-origin', headers: { 'X-XSRF-TOKEN': csrf(), Accept: 'application/json' } });
-    }, [start]);
+        if (sessionRef.current) fetch(`/playback/session/${sessionRef.current}/stop`, { method: 'POST', keepalive: true, credentials: 'same-origin', headers: { 'X-XSRF-TOKEN': csrf(), Accept: 'application/json' } });
+    }, []);
 
     // ---- subtitles: <track> elements, show the selected one ---------------------------
     useEffect(() => {
@@ -179,6 +182,54 @@ export default function Player({ file, item, episode, next, prefs: initialPrefs,
         const id = setInterval(() => api<PartyState & { messages: Msg[] }>(`/party/${party}/state`).then((r) => { if (r.ok) { applyParty(r.data); setMessages(r.data.messages); } }), 3000);
         return () => clearInterval(id);
     }, [party, start, reverb, applyParty]);
+
+    // ---- remote control target: report state, apply server-relayed commands -------------------
+    const remoteSeq = useRef(0);
+    const [remoteId, setRemoteId] = useState<string | null>(null);
+    const live = useRef({ audioIndex, subId, start });
+    live.current = { audioIndex, subId, start };
+    useEffect(() => {
+        if (party) return; // watch party has its own sync
+        (async () => {
+            const r = await api<{ uuid: string; last_seq: number }>('/remote/register', 'POST', { uuid: localStorage.getItem('mx-remote-uuid') || undefined });
+            if (!r.ok) return;
+            localStorage.setItem('mx-remote-uuid', r.data.uuid);
+            remoteSeq.current = r.data.last_seq;
+            setRemoteId(r.data.uuid);
+        })();
+    }, [party]);
+    useEffect(() => {
+        if (!remoteId) return;
+        const id = setInterval(() => {
+            const v = video.current;
+            if (!v) return;
+            api(`/remote/${remoteId}/state`, 'POST', { state: {
+                title: item.title, subtitle: episode ? `S${episode.season} · E${episode.number}` : null, file_id: file.id, position: Math.round(v.currentTime), duration: Math.round(v.duration || file.duration),
+                paused: v.paused, audio: file.audio.map((a, i) => a.title || a.language || `#${i + 1}`), audio_index: live.current.audioIndex,
+                subtitles: live.current.start?.subtitles.map((s) => ({ id: s.id, label: s.label })) ?? [], subtitle_id: live.current.subId, has_next: !!next,
+            } });
+        }, 2000);
+        const echo = getEcho(reverb);
+        if (echo) {
+            echo.private(`remote.${remoteId}`).listen('.command', (c: RemoteCmd) => {
+                if (!acceptRemoteCommand(remoteSeq.current, c)) return; // stale or duplicate
+                remoteSeq.current = c.seq;
+                const v = video.current;
+                if (!v) return;
+                switch (c.action) {
+                    case 'play': v.play().catch(() => {}); break;
+                    case 'pause': v.pause(); break;
+                    case 'seek': v.currentTime = Number(c.value) || 0; break;
+                    case 'skip': v.currentTime = Math.max(0, v.currentTime + (Number(c.value) || 0)); break;
+                    case 'subtitle': setSubId(c.value == null ? null : Number(c.value)); break;
+                    case 'audio': setAudioIndex(Number(c.value) || 0); if (hls.current && hls.current.audioTracks.length > 1) hls.current.audioTrack = Number(c.value) || 0; else begin({ audio: Number(c.value) || 0, keepTime: true }); break;
+                    case 'next': if (next) router.visit(`/watch/${next.file_id}`); break;
+                    case 'stop': v.pause(); router.visit(`/title/${item.id}`); break;
+                }
+            });
+        }
+        return () => { clearInterval(id); echo?.leave(`remote.${remoteId}`); };
+    }, [remoteId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ---- access revoked (custom block added while watching) → stop and leave --------------
     useEffect(() => {

@@ -42,6 +42,16 @@ const en: typeof ar = {
         types: { item: 'Title', season: 'Season', episode: 'Episode', genre: 'Genre', collection: 'Collection', tag: 'Tag', library: 'Library', channel: 'Channel', channel_category: 'Channel category' },
         thisTitle: 'This title', thisSeason: 'This season', thisChannel: 'This channel', thisCategory: 'Channel category',
     },
+    devices: {
+        tvTitle: 'Sign in on TV', tvHint: 'Scan with a signed-in phone, or open movexa.lan:8088/link and enter the code.', expiresIn: 'Expires in', approve: 'Approve',
+        approveQ: 'Allow this device to sign in to your account?', codeLabel: 'Code', enterCode: 'Enter the code shown on the TV', approved: 'Approved. The TV will now show the profile picker.',
+        notFound: 'Invalid or expired code.', myDevices: 'My devices', thisDevice: 'This device', revoke: 'Sign out', lastSeen: 'Last active', signInTv: 'Sign in on a TV with a QR code',
+        remote: 'Remote', noDevices: 'Nothing is playing on your account right now.', remoteUnavailable: 'Remote unavailable right now (realtime server down). Playback on the other device continues.', stop: 'Stop watching',
+        downloads: 'Downloads', download: 'Download', disabled: 'Downloads are not enabled for your account. Ask an admin.', quality: 'Quality', save: 'Save to device', saved: 'Saved on device',
+        saving: 'Saving', preparing: 'Preparing on server', space: 'Space', used: 'used', remaining: 'left', offline: 'Offline mode', playOffline: 'Play',
+        offlineNote: 'Saved copies play offline and expire after 30 days unless the device reconnects. If access is revoked they are deleted on the next connection.', expires: 'Expires', countLimit: 'Download limit reached', quota: 'Not enough download quota',
+    },
+    pick: { button: 'What to watch?', title: 'What should we watch?', another: 'Another one', none: 'Nothing matches your choices. Try fewer filters.', anyType: 'Movie or show', minutes: 'Time available (minutes)', lang: 'Audio or subtitle language', go: 'Pick for me', details: 'Details' },
     twoFactor: { title: 'Two-factor authentication', enable: 'Enable', disable: 'Disable', enabled: 'Enabled', scan: 'Add this key to your authenticator app, then enter the code', code: 'Verification code', password: 'Password', verify: 'Verify' },
 };
 export default en;

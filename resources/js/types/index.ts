@@ -1,6 +1,6 @@
 import type { Config } from 'ziggy-js';
 
-export interface User { id: number; name: string; email: string; email_verified_at?: string | null; is_admin: boolean; locale: string; avatar?: string }
+export interface User { downloads_enabled?: boolean; id: number; name: string; email: string; email_verified_at?: string | null; is_admin: boolean; locale: string; avatar?: string }
 export interface Profile { id: number; name: string; avatar_color: string; is_kid: boolean; max_age_rating: number | null; locale: string | null; has_pin?: boolean; subtitle_prefs?: SubPrefs | null; settings?: ProfileSettings }
 export interface ProfileSettings { intro: boolean; pause_screen: boolean; ambient: 'off' | 'soft' | 'strong'; poster_wall: boolean; recap: boolean }
 export interface SubPrefs { size: number; color: string; background: number; position: number }
