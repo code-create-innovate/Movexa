@@ -59,7 +59,7 @@ class MediaAccessTest extends TestCase
         auth()->logout();
         $this->flushSession();
         foreach ($urls as $u) {
-            $this->get($u)->assertRedirect('/login');
+            $this->get($u)->assertForbidden();
         }
     }
 

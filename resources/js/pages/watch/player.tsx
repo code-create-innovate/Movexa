@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils';
 import type { Card, SharedData, SubPrefs } from '@/types';
 
 type Sub = { id: number; label: string; language: string | null; url: string };
-type Start = { session: string; method: 'direct' | 'remux' | 'transcode'; type: 'file' | 'hls'; src: string; ready: boolean; job?: number; progress?: number; position: number; subtitles: Sub[]; thumbnails: string | null };
+type Start = { keep?: boolean; session: string; method: 'direct' | 'remux' | 'transcode'; type: 'file' | 'hls'; src: string; ready: boolean; job?: number; progress?: number; position: number; subtitles: Sub[]; thumbnails: string | null };
 type Props = {
     file: { id: number; duration: number; height: number | null; intro: { start: number; end: number } | null; audio: { language: string | null; title: string | null; codec: string }[]; qualities: number[] };
     item: Card; episode: { season: number; number: number; title: string | null } | null;
@@ -74,7 +74,7 @@ export default function Player({ file, item, episode, next, prefs: initialPrefs,
         });
         if (!r.ok) return setError(r.status === 429 ? t.player.limit : t.player.error);
         const s = r.data;
-        if (at !== null) s.position = at;
+        if (at !== null) { s.position = at; s.keep = true; }
         if (s.type === 'hls' && !s.ready && s.job) {
             setPreparing(s.progress ?? 0);
             for (;;) {
@@ -97,7 +97,8 @@ export default function Player({ file, item, episode, next, prefs: initialPrefs,
         if (!v || !start) return;
         hls.current?.destroy();
         hls.current = null;
-        const seekTo = start.position > 5 && start.position < (file.duration || Infinity) - 10 ? start.position : 0;
+        // Resume rule (skip tiny/near-end positions) applies to fresh starts; quality/audio switches keep the exact time.
+        const seekTo = start.keep ? start.position : start.position > 5 && start.position < (file.duration || Infinity) - 10 ? start.position : 0;
         const onMeta = () => { if (seekTo) v.currentTime = seekTo; v.play().catch(() => {}); };
         v.addEventListener('loadedmetadata', onMeta, { once: true });
         if (start.type === 'hls' && Hls.isSupported() && !isApple()) {

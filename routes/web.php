@@ -38,6 +38,10 @@ Route::middleware('guest')->group(function () {
     Route::post('two-factor-challenge', [TwoFactorController::class, 'verify'])->middleware('throttle:10,1');
 });
 
+// The single gateway to media bytes (signed token in the path + session + profile check).
+// Deliberately outside the `auth` middleware: no login redirect / "intended URL" for media — just 403.
+Route::get('m/{token}/{path?}', MediaAccessController::class)->where('path', '[A-Za-z0-9_\-./]+')->name('media');
+
 Route::middleware('auth')->group(function () {
     Route::get('profiles', [ProfileController::class, 'select'])->name('profiles.select');
     Route::post('profiles/{profile}/enter', [ProfileController::class, 'enter'])->middleware('throttle:20,1')->name('profiles.enter');
@@ -51,8 +55,6 @@ Route::middleware('auth')->group(function () {
     Route::put('settings/two-factor', [TwoFactorController::class, 'confirm'])->name('two-factor.confirm');
     Route::delete('settings/two-factor', [TwoFactorController::class, 'disable'])->name('two-factor.disable');
 
-    // The single gateway to media bytes (signed token in the path + session + profile check)
-    Route::get('m/{token}/{path?}', MediaAccessController::class)->where('path', '[A-Za-z0-9_\-./]+')->name('media');
 
     Route::middleware('profile')->group(function () {
         Route::get('home', [BrowseController::class, 'home'])->name('home');

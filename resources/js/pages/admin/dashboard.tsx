@@ -50,7 +50,7 @@ export default function Dashboard(p: Props) {
     return (
         <AdminLayout title={t.admin}>
             <div className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-                {tiles.map(([k, v]) => <div key={k} className="rounded-lg border bg-card p-3"><div className="text-xs text-muted-foreground">{k}</div><div className="mt-1 text-sm font-semibold">{v}</div></div>)}
+                {tiles.map(([k, v]) => <div key={k} className="rounded-lg border bg-card p-3"><div className="text-xs text-muted-foreground">{k}</div><div className="mt-1 text-sm font-semibold"><span dir="ltr" className="inline-block">{v}</span></div></div>)}
             </div>
 
             <Section title={t.adminUi.sessions}>
