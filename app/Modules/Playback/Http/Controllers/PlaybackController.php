@@ -1,0 +1,171 @@
+<?php
+
+namespace App\Modules\Playback\Http\Controllers;
+
+use App\Http\Controllers\Controller;
+use App\Modules\Core\Services\MediaSigner;
+use App\Modules\Library\Http\Controllers\BrowseController;
+use App\Modules\Library\Models\MediaFile;
+use App\Modules\Library\Services\MediaPresenter;
+use App\Modules\Library\Services\Security\SubtitleSanitizer;
+use App\Modules\Library\Services\Security\VirusScanner;
+use App\Modules\Media\Jobs\TranscodeMediaJob;
+use App\Modules\Media\Services\HlsPackager;
+use App\Modules\Media\Services\PlaybackDecider;
+use App\Modules\Playback\Models\PlaybackSession;
+use App\Modules\Playback\Models\TranscodeJob;
+use App\Modules\Playback\Models\WatchProgress;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Inertia\Inertia;
+
+class PlaybackController extends Controller
+{
+    public function __construct(private MediaSigner $signer) {}
+
+    private function file(Request $request, int $id): MediaFile
+    {
+        $f = MediaFile::with('item', 'streams', 'subtitles', 'episode.season')->find($id);
+        abort_unless($f && $f->viewableBy($request->attributes->get('profile')), 404);
+
+        return $f;
+    }
+
+    public function page(Request $request, int $file, MediaPresenter $present)
+    {
+        $f = $this->file($request, $file);
+        $profile = $request->attributes->get('profile');
+        $next = $f->episode ? BrowseController::episodeAfter($f->episode) : null;
+
+        return Inertia::render('watch/player', [
+            'file' => [
+                'id' => $f->id, 'duration' => $f->duration, 'height' => $f->height,
+                'intro' => $f->intro_end ? ['start' => $f->intro_start ?? 0, 'end' => $f->intro_end] : null,
+                'audio' => $f->streams->where('type', 'audio')->map(fn ($s) => ['language' => $s->language, 'title' => $s->title, 'codec' => $s->codec])->values(),
+                'qualities' => array_values(app(HlsPackager::class)->ladderFor($f)),
+            ],
+            'item' => $present->card($f->item, $profile),
+            'episode' => $f->episode ? ['season' => $f->episode->season->number, 'number' => $f->episode->number, 'title' => $f->episode->title] : null,
+            'next' => $next?->file ? ['file_id' => $next->file->id, 'season' => $next->season->number, 'number' => $next->number, 'title' => $next->title] : null,
+            'prefs' => $profile->subtitle_prefs ?? ['size' => 100, 'color' => '#ffffff', 'background' => 60, 'position' => 8],
+            'preferredSubtitle' => $profile->preferred_subtitle_lang,
+            'party' => $request->query('party'),
+        ]);
+    }
+
+    public function start(Request $request, int $file, PlaybackDecider $decider, HlsPackager $packager)
+    {
+        $f = $this->file($request, $file);
+        $profile = $request->attributes->get('profile');
+        $user = $request->user();
+        $data = $request->validate([
+            'caps' => ['array'], 'caps.video' => ['array'], 'caps.audio' => ['array'], 'caps.containers' => ['array'], 'caps.maxHeight' => ['nullable', 'integer'],
+            'audio' => ['nullable', 'integer', 'min:0'], 'quality' => ['nullable', 'string'], 'session' => ['nullable', 'uuid'],
+        ]);
+
+        $limit = $user->max_concurrent_streams ?? config('movexa.limits.streams_per_user');
+        $active = PlaybackSession::active()->where('user_id', $user->id)->when($data['session'] ?? null, fn ($q, $s) => $q->where('uuid', '!=', $s))->count();
+        if ($active >= $limit) {
+            return response()->json(['message' => 'stream_limit', 'limit' => $limit], 429);
+        }
+
+        $quality = $data['quality'] ?? 'auto';
+        $decision = $decider->decide($f, $data['caps'] ?? [], (int) ($data['audio'] ?? 0), $quality !== 'auto' && $quality !== 'original');
+
+        $session = PlaybackSession::updateOrCreate(['uuid' => $data['session'] ?? (string) Str::uuid()], [
+            'user_id' => $user->id, 'profile_id' => $profile->id, 'media_file_id' => $f->id, 'method' => $decision['method'],
+            'client' => mb_substr((string) $request->userAgent(), 0, 190), 'last_seen_at' => now(),
+        ]);
+
+        $resp = [
+            'session' => $session->uuid, 'method' => $decision['method'], 'reason' => $decision['reason'],
+            'position' => (float) (WatchProgress::where('profile_id', $profile->id)->where('media_file_id', $f->id)->where('completed', false)->value('position') ?? 0),
+            'subtitles' => $f->subtitles->map(fn ($s) => ['id' => $s->id, 'label' => $s->label, 'language' => $s->language, 'url' => $this->signer->url('sub', $s->id, $user->id, $profile->id, 'subtitle.vtt')])->values(),
+            'thumbnails' => $f->thumbnails_path ? $this->signer->url('thumb', $f->id, $user->id, $profile->id, 'thumbnails.vtt') : null,
+        ];
+
+        if ($decision['method'] === 'direct') {
+            return $resp + ['type' => 'file', 'src' => $this->signer->url('file', $f->id, $user->id, $profile->id, 'stream.'.($f->container === 'webm' ? 'webm' : 'mp4')), 'ready' => true];
+        }
+
+        $mode = $decision['method'];
+        $heights = $mode === 'transcode' ? ($quality !== 'auto' && ctype_digit($quality) ? [(int) $quality] : $packager->ladderFor($f)) : null;
+        $key = HlsPackager::profileKey($mode, $heights);
+        $job = TranscodeJob::firstOrCreate(['media_file_id' => $f->id, 'profile_key' => $key], ['mode' => $mode, 'status' => 'queued']);
+        if ($job->status === 'failed' || ($job->status === 'done' && (! $job->output_dir || ! is_file($job->output_dir.'/master.m3u8')))) {
+            $job->update(['status' => 'queued', 'error' => null]);
+        }
+        if ($job->wasRecentlyCreated || $job->status === 'queued') {
+            TranscodeMediaJob::dispatch($job->id);
+            $job->refresh();
+        }
+
+        return $resp + [
+            'type' => 'hls', 'job' => $job->id, 'ready' => HlsPackager::isPlayable($job), 'progress' => $job->progress, 'status' => $job->status,
+            'src' => $this->signer->url('hls', $job->id, $user->id, $profile->id, 'master.m3u8'),
+        ];
+    }
+
+    public function progress(Request $request, string $session)
+    {
+        $s = PlaybackSession::where('uuid', $session)->where('user_id', $request->user()->id)->firstOrFail();
+        $profile = $request->attributes->get('profile');
+        abort_unless($s->profile_id === $profile->id, 403);
+        $data = $request->validate(['position' => ['required', 'numeric', 'min:0'], 'duration' => ['nullable', 'numeric', 'min:0']]);
+        $s->update(['last_seen_at' => now()]);
+
+        $file = MediaFile::find($s->media_file_id);
+        $duration = $data['duration'] ?: $file->duration;
+        $completed = $duration && $data['position'] >= $duration * 0.92;
+        $row = WatchProgress::firstOrNew(['profile_id' => $profile->id, 'media_file_id' => $file->id]);
+        $wasCompleted = $row->exists && $row->completed;
+        $row->fill(['media_item_id' => $file->media_item_id, 'episode_id' => $file->episode_id, 'position' => $completed ? 0 : $data['position'], 'duration' => $duration, 'completed' => $completed])->save();
+        if ($completed && ! $wasCompleted) {
+            DB::table('watch_history')->insert(['profile_id' => $profile->id, 'media_item_id' => $file->media_item_id, 'episode_id' => $file->episode_id, 'watched_at' => now()]);
+        }
+
+        return ['ok' => true, 'completed' => $completed];
+    }
+
+    public function status(Request $request, int $job)
+    {
+        $j = TranscodeJob::findOrFail($job);
+        abort_unless($j->file && $j->file->viewableBy($request->attributes->get('profile')), 404);
+
+        return ['ready' => HlsPackager::isPlayable($j), 'progress' => $j->progress, 'status' => $j->status];
+    }
+
+    public function stop(Request $request, string $session)
+    {
+        PlaybackSession::where('uuid', $session)->where('user_id', $request->user()->id)->delete();
+
+        return ['ok' => true];
+    }
+
+    /** Manual subtitle upload: scanned, decoded (Windows-1256 etc.), sanitized to WebVTT. */
+    public function uploadSubtitle(Request $request, int $file, SubtitleSanitizer $sanitizer, VirusScanner $scanner)
+    {
+        $f = $this->file($request, $file);
+        abort_if($request->attributes->get('profile')->is_kid, 403);
+        $data = $request->validate(['subtitle' => ['required', 'file', 'max:5120'], 'language' => ['nullable', 'string', 'max:8'], 'label' => ['nullable', 'string', 'max:60']]);
+        $upload = $data['subtitle'];
+        $ext = strtolower($upload->getClientOriginalExtension());
+        abort_unless(in_array($ext, ['srt', 'vtt', 'ass', 'ssa'], true), 422, 'unsupported subtitle type');
+        $scan = $scanner->scan($upload->getRealPath());
+        if (! $scan->clean && ! (! config('movexa.security.require_scanner') && $scan->failed())) {
+            return response()->json(['message' => 'rejected'], 422);
+        }
+        $raw = (string) file_get_contents($upload->getRealPath());
+        abort_if(preg_match('/[\x00-\x08\x0E-\x1A]/', substr($raw, 0, 4096)) && ! str_starts_with($raw, "\xFF\xFE") && ! str_starts_with($raw, "\xFE\xFF"), 422, 'binary content');
+        $clean = $sanitizer->sanitize($raw, $ext);
+        abort_if($clean['cues'] === 0, 422, 'no cues');
+        $dir = config('movexa.paths.library').'/.subtitles/'.$f->id;
+        @mkdir($dir, 0755, true);
+        $path = $dir.'/upload-'.Str::random(10).'.vtt';
+        file_put_contents($path, $clean['vtt']);
+        $sub = $f->subtitles()->create(['language' => $data['language'] ?? null, 'label' => $data['label'] ?? strtoupper($data['language'] ?? 'Upload'), 'path' => $path, 'source' => 'upload', 'source_encoding' => $clean['encoding']]);
+
+        return ['id' => $sub->id, 'encoding' => $clean['encoding'], 'cues' => $clean['cues']];
+    }
+}
