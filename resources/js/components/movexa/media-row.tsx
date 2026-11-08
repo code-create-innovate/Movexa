@@ -48,9 +48,9 @@ export function MediaRow({ title, items, top = false }: { title: string; items: 
                 <Carousel label={title}>
                     {items.map((i) => (
                         <CarouselItem key={i.id} className="basis-[62%] sm:basis-[38%] md:basis-[28%] lg:basis-[22%] xl:basis-[18%]">
-                            <div className="flex items-end">
-                                <span className="mx-rank select-none" aria-label={`#${i.rank}`}>{i.rank}</span>
-                                <div className="-ms-4 w-[58%] shrink-0"><MediaCard item={i} /></div>
+                            <div className="flex items-end gap-1">
+                                <span className="mx-rank w-[40%] shrink-0 select-none text-end" aria-label={`#${i.rank}`}>{i.rank}</span>
+                                <div className="w-[58%] shrink-0"><MediaCard item={i} /></div>
                             </div>
                         </CarouselItem>
                     ))}

@@ -13,10 +13,12 @@ export function PosterWall({ posters, enabled = true, className }: { posters: { 
     const animated = enabled && heavyVisualsOk() && !reducedMotion();
     const cols = useMemo(() => {
         if (!posters.length) return [];
-        const n = Math.min(8, Math.max(3, Math.ceil(posters.length / 5)));
+        // Column width ≈ 160 px whatever the library size; small libraries are repeated to fill the columns.
+        const n = Math.min(12, Math.max(3, Math.round((typeof window !== 'undefined' ? window.innerWidth : 1280) / 160)));
+        const list = posters.slice(0, 40);
         const out: { src: string }[][] = Array.from({ length: n }, () => []);
-        posters.slice(0, 40).forEach((p, i) => out[i % n].push(p));
-        return out.map((c) => (c.length < 4 ? [...c, ...c, ...c] : c));
+        for (let i = 0; i < Math.max(list.length, n * 5); i++) out[i % n].push(list[(i * 7 + Math.floor(i / n)) % list.length]);
+        return out;
     }, [posters]);
     useEffect(() => {
         const on = () => setHidden(document.hidden);

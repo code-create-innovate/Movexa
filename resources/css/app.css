@@ -215,8 +215,11 @@ video::cue {
 :root { transition: --page-tint 1.2s ease; }
 @media (prefers-reduced-motion: reduce) { :root { transition-duration: 4s; } }
 .mx-tinted {
+    /* own stacking context so the fixed poster wall (z-index:-1) paints above this background */
+    position: relative;
+    isolation: isolate;
     background:
-        radial-gradient(ellipse 120% 70% at 50% 0%, color-mix(in srgb, var(--page-tint) 55%, transparent), transparent 70%),
+        radial-gradient(ellipse 120% 60% at 50% 0%, color-mix(in srgb, var(--page-tint) 50%, transparent), transparent 70%) fixed,
         var(--background);
 }
 
