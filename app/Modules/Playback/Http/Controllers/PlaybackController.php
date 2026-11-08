@@ -37,6 +37,9 @@ class PlaybackController extends Controller
         $f = $this->file($request, $file);
         $profile = $request->attributes->get('profile');
         $next = $f->episode ? BrowseController::episodeAfter($f->episode) : null;
+        if ($next && (! $next->file || ! $next->file->viewableBy($profile))) {
+            $next = null;
+        }
 
         return Inertia::render('watch/player', [
             'file' => [
@@ -52,6 +55,14 @@ class PlaybackController extends Controller
             'preferredSubtitle' => $profile->preferred_subtitle_lang,
             'party' => $request->query('party'),
         ]);
+    }
+
+    /** Lightweight re-check used by players after an "access revoked" signal. */
+    public function check(Request $request, int $file)
+    {
+        $this->file($request, $file);
+
+        return response()->noContent();
     }
 
     public function start(Request $request, int $file, PlaybackDecider $decider, HlsPackager $packager)

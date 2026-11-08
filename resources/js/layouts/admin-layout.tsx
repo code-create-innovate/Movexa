@@ -8,7 +8,7 @@ export default function AdminLayout({ title, children }: { title: string; childr
     const { t } = useT();
     const url = usePage().url;
     const tabs = [
-        ['/admin', t.adminUi.dashboard], ['/admin/quarantine', t.adminUi.quarantine], ['/admin/matches', t.adminUi.matches], ['/admin/live', t.adminUi.liveSources],
+        ['/admin', t.adminUi.dashboard], ['/admin/quarantine', t.adminUi.quarantine], ['/admin/matches', t.adminUi.matches], ['/admin/live', t.adminUi.liveSources], ['/blocks', t.blocks.title],
     ];
     return (
         <MovexaLayout title={title}>

@@ -28,6 +28,8 @@ Route::get('locale/{lang}', function (string $lang) {
     return redirect(str_starts_with($back, '/') && ! str_starts_with($back, '//') ? $back : '/');
 })->name('locale');
 
+Route::post('view-as/exit', [\App\Modules\Core\Http\Controllers\BlockController::class, 'exitViewAs'])->middleware('auth')->name('view-as.exit');
+
 // HomeCore SSO (OIDC + PKCE)
 Route::get('auth/homecore', [OidcController::class, 'redirect'])->name('oidc.redirect');
 Route::get('auth/homecore/callback', [OidcController::class, 'callback'])->name('oidc.callback');
@@ -66,6 +68,7 @@ Route::middleware('auth')->group(function () {
         Route::put('profile/preferences', [ProfileController::class, 'preferences'])->name('profile.preferences');
 
         Route::get('watch/{file}', [PlaybackController::class, 'page'])->name('watch');
+        Route::get('playback/{file}/check', [PlaybackController::class, 'check'])->name('playback.check');
         Route::post('playback/{file}/start', [PlaybackController::class, 'start'])->name('playback.start');
         Route::post('playback/session/{session}/progress', [PlaybackController::class, 'progress'])->name('playback.progress');
         Route::post('playback/session/{session}/stop', [PlaybackController::class, 'stop'])->name('playback.stop');
@@ -82,6 +85,13 @@ Route::middleware('auth')->group(function () {
         Route::get('live/stream/{stream}/status', [LiveController::class, 'status'])->name('live.status');
         Route::post('live/stream/{stream}/leave', [LiveController::class, 'leave'])->name('live.leave');
         Route::post('live/{channel}/favorite', [LiveController::class, 'favorite'])->name('live.favorite');
+
+        // Custom blocking (admin: everyone; account owner: own profiles). Kid profiles are refused in the controller.
+        Route::get('blocks', [\App\Modules\Core\Http\Controllers\BlockController::class, 'index'])->name('blocks');
+        Route::get('blocks/options', [\App\Modules\Core\Http\Controllers\BlockController::class, 'options'])->name('blocks.options');
+        Route::post('blocks', [\App\Modules\Core\Http\Controllers\BlockController::class, 'store'])->middleware('throttle:30,1')->name('blocks.store');
+        Route::delete('blocks', [\App\Modules\Core\Http\Controllers\BlockController::class, 'destroy'])->middleware('throttle:30,1')->name('blocks.destroy');
+        Route::post('view-as/{profile}', [\App\Modules\Core\Http\Controllers\BlockController::class, 'viewAs'])->name('view-as');
 
         Route::middleware('admin')->prefix('admin')->name('admin.')->group(function () {
             Route::get('/', [AdminController::class, 'dashboard'])->name('dashboard');

@@ -10,11 +10,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class MediaItem extends Model
 {
-    protected $fillable = ['library_id', 'type', 'title', 'title_ar', 'original_title', 'overview', 'overview_ar', 'year', 'age_rating', 'certification', 'genres', 'cast', 'vote_average', 'tmdb_id', 'poster_path', 'backdrop_path', 'match_locked', 'match_key'];
+    protected $fillable = ['library_id', 'type', 'title', 'title_ar', 'original_title', 'overview', 'overview_ar', 'year', 'age_rating', 'certification', 'genres', 'cast', 'vote_average', 'tmdb_id', 'poster_path', 'backdrop_path', 'match_locked', 'match_key', 'dominant_color', 'tags', 'featured', 'preview_path'];
 
     protected function casts(): array
     {
-        return ['genres' => 'array', 'cast' => 'array', 'match_locked' => 'boolean', 'age_rating' => 'integer', 'vote_average' => 'float'];
+        return ['tags' => 'array', 'featured' => 'boolean', 'genres' => 'array', 'cast' => 'array', 'match_locked' => 'boolean', 'age_rating' => 'integer', 'vote_average' => 'float'];
     }
 
     public function library(): BelongsTo
@@ -37,15 +37,15 @@ class MediaItem extends Model
         return $this->hasMany(Episode::class);
     }
 
-    /** Only items with at least one READY file, filtered by the profile's age limit. */
+    /** Ready + age limit + custom blocks (single AccessPolicy, fails closed). */
     public function scopeVisibleTo(Builder $q, Profile $profile): Builder
     {
-        $q->whereHas('files', fn ($f) => $f->where('status', 'ready'));
-        if (($limit = $profile->ageLimit()) !== null) {
-            $q->whereNotNull('age_rating')->where('age_rating', '<=', $limit);
-        }
+        return app(\App\Modules\Core\Services\AccessPolicy::class)->scopeItems($q, $profile);
+    }
 
-        return $q;
+    public function collections(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(\App\Modules\Library\Models\Collection::class);
     }
 
     public function displayTitle(?string $locale = null): string

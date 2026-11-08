@@ -12,7 +12,7 @@ class Profile extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'avatar_color', 'is_kid', 'max_age_rating', 'locale', 'subtitle_prefs', 'preferred_audio_lang', 'preferred_subtitle_lang'];
+    protected $fillable = ['name', 'avatar_color', 'is_kid', 'max_age_rating', 'locale', 'subtitle_prefs', 'preferred_audio_lang', 'preferred_subtitle_lang', 'settings'];
 
     protected $hidden = ['pin_hash'];
 
@@ -20,7 +20,7 @@ class Profile extends Model
 
     protected function casts(): array
     {
-        return ['is_kid' => 'boolean', 'subtitle_prefs' => 'array', 'max_age_rating' => 'integer'];
+        return ['settings' => 'array', 'is_kid' => 'boolean', 'subtitle_prefs' => 'array', 'max_age_rating' => 'integer'];
     }
 
     protected static function newFactory()
@@ -46,6 +46,18 @@ class Profile extends Model
     public function checkPin(?string $pin): bool
     {
         return $this->pin_hash === null || ($pin !== null && Hash::check($pin, $this->pin_hash));
+    }
+
+    public const DEFAULT_SETTINGS = ['intro' => true, 'pause_screen' => true, 'ambient' => 'soft', 'poster_wall' => true, 'recap' => true];
+
+    public function setting(string $key): mixed
+    {
+        return ($this->settings ?? [])[$key] ?? self::DEFAULT_SETTINGS[$key] ?? null;
+    }
+
+    public function allSettings(): array
+    {
+        return array_merge(self::DEFAULT_SETTINGS, $this->settings ?? []);
     }
 
     /** Effective max age rating, or null for unrestricted profiles. */

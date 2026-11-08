@@ -45,13 +45,14 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $user?->only('id', 'name', 'email', 'is_admin', 'locale'),
             ],
-            'profile' => $profile?->only('id', 'name', 'avatar_color', 'is_kid', 'max_age_rating', 'locale', 'subtitle_prefs'),
+            'viewAs' => app(\App\Modules\Core\Services\ProfileContext::class)->viewingAs(),
+            'profile' => $profile ? $profile->only('id', 'name', 'avatar_color', 'is_kid', 'max_age_rating', 'locale', 'subtitle_prefs') + ['settings' => $profile->allSettings()] : null,
             'homecore' => ['url' => config('movexa.homecore.url'), 'sso' => (bool) config('movexa.homecore.oidc.enabled'), 'theme' => config('movexa.homecore.theme_css')],
             'reverb' => config('broadcasting.default') === 'reverb' ? [
                 'key' => config('broadcasting.connections.reverb.key'),
-                'host' => env('REVERB_PUBLIC_HOST', $request->getHost()),
-                'port' => (int) env('REVERB_PUBLIC_PORT', $request->getPort()),
-                'scheme' => env('REVERB_PUBLIC_SCHEME', $request->getScheme()),
+                'host' => config('broadcasting.connections.reverb.options.host') ?: $request->getHost(),
+                'port' => (int) (config('broadcasting.connections.reverb.options.port') ?: $request->getPort()),
+                'scheme' => config('broadcasting.connections.reverb.options.scheme') ?: $request->getScheme(),
             ] : null,
             'flash' => ['status' => $request->hasSession() ? $request->session()->get('status') : null],
         ];

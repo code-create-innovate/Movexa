@@ -30,7 +30,7 @@ const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 export default function Player({ file, item, episode, next, prefs: initialPrefs, preferredSubtitle, party }: Props) {
     const { t, dir } = useT();
-    const { reverb } = usePage<SharedData>().props;
+    const { reverb, profile } = usePage<SharedData>().props;
     const video = useRef<HTMLVideoElement>(null);
     const wrap = useRef<HTMLDivElement>(null);
     const hls = useRef<Hls | null>(null);
@@ -179,6 +179,23 @@ export default function Player({ file, item, episode, next, prefs: initialPrefs,
         const id = setInterval(() => api<PartyState & { messages: Msg[] }>(`/party/${party}/state`).then((r) => { if (r.ok) { applyParty(r.data); setMessages(r.data.messages); } }), 3000);
         return () => clearInterval(id);
     }, [party, start, reverb, applyParty]);
+
+    // ---- access revoked (custom block added while watching) → stop and leave --------------
+    useEffect(() => {
+        const echo = getEcho(reverb);
+        if (!echo || !profile) return;
+        const name = `profile.${profile.id}`;
+        echo.private(name).listen('.access.revoked', async () => {
+            const r = await fetch(`/playback/${file.id}/check`, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+            if (r.status === 404) {
+                hls.current?.destroy();
+                video.current?.pause();
+                video.current?.removeAttribute('src');
+                router.visit('/home');
+            }
+        });
+        return () => echo.leave(name);
+    }, [reverb, profile, file.id]);
 
     // ---- controls ----------------------------------------------------------------------
     const v = video.current;

@@ -50,8 +50,9 @@ class IntegrationApiTest extends TestCase
         $h = ['Authorization' => "Bearer {$token}"];
 
         $this->getJson('/api/homecore/continue-watching?user=hc-42', $h)->assertOk()->assertJsonPath('items.0.title', 'Dune')->assertJsonPath('items.0.progress', 0.2);
-        $this->getJson('/api/homecore/search?q='.urlencode('كثيب'), $h)->assertJsonPath('results.0.title', 'Dune');
-        $this->getJson('/api/homecore/search?q=dun', $h)->assertJsonCount(1, 'results');
+        $this->getJson('/api/homecore/search?user=hc-42&q='.urlencode('كثيب'), $h)->assertJsonPath('results.0.title', 'Dune');
+        $this->getJson('/api/homecore/search?user=hc-42&q=dun', $h)->assertJsonCount(1, 'results');
+        $this->getJson('/api/homecore/search?q=dun', $h)->assertJsonCount(0, 'results');
     }
 
     public function test_cloudsync_link_verifies_permission_and_path(): void

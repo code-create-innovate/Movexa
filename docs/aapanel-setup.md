@@ -53,53 +53,45 @@ Configuration: `upload_max_filesize = 16M` و `post_max_size = 16M` (حجم ال
 open_basedir=/www/wwwroot/movexa.lan/:/www/data/movexa/:/www/data/cloudsync/:/tmp/:/usr/bin/ffmpeg:/usr/bin/ffprobe:/var/run/clamav/
 ```
 
-## 5. Nginx
-**Site → URL rewrite** (الصق):
-```nginx
-location / { try_files $uri $uri/ /index.php?$query_string; }
-```
-**Site → Config file** — داخل كتلة `server` الخاصة بالموقع (قبل `include enable-php-83.conf;`):
-```nginx
-client_max_body_size 16m;
-add_header X-Content-Type-Options nosniff always;
+## 5. Nginx — المنفذ 8088 (إلزامي)
+العنوان الوحيد: **`https://movexa.lan:8088`** — HTTPS مباشرة على 8088، ولا يخدم Movexa على 80 أو 443.
 
-# ملفات محمية: لا تُقدّم إلا عبر X-Accel-Redirect بعد تحقق Laravel (جلسة + توكن + PIN/عمر)
-location /_protected/ {
-    internal;
-    alias /www/data/movexa/;
-    types { video/mp4 mp4 m4v; video/iso.segment m4s; application/vnd.apple.mpegurl m3u8; video/mp2t ts; text/vtt vtt; image/webp webp; image/jpeg jpg; video/x-matroska mkv; video/webm webm; }
-    default_type application/octet-stream;
-    add_header X-Content-Type-Options nosniff always;
-    add_header Cache-Control "private" always;
-    sendfile on; tcp_nopush on; aio threads;
-}
-location /_cloudsync/ {               # ملفات CloudSync المربوطة دون نسخ
-    internal;
-    alias /www/data/cloudsync/;
-    add_header X-Content-Type-Options nosniff always;
-}
-# منع أي وصول مباشر لمسارات البيانات أو الملفات المخفية
-location ~ /\.(?!well-known) { deny all; }
-
-# Reverb (WebSocket)
-location ~ ^/(app|apps)/ {
-    proxy_http_version 1.1;
-    proxy_set_header Host $http_host;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_read_timeout 3600s;
-    proxy_pass http://127.0.0.1:8080;
-}
+1. **قبل التثبيت** تأكد أن المنفذ غير مستخدم: `ss -ltnp | grep -E ':(8088|8080) '` (يجب ألا يظهر شيء).
+2. Website → movexa.lan → **Domain manager**: أضف `movexa.lan:8088` واحذف `movexa.lan` (المنفذ 80).
+3. **SSL → Other certificate**: الصق الشهادة والمفتاح (انظر القسم 6). **لا تفعّل Force HTTPS** (يفترض 443).
+4. **Config file**: استبدل كتلة `server` كاملة بالملف الجاهز [`deploy/nginx/movexa.lan.conf`](../deploy/nginx/movexa.lan.conf)، وأهم ما فيه:
+```nginx
+listen 8088 ssl http2;               # nginx >= 1.25.1:  listen 8088 ssl;  +  http2 on;
+error_page 497 https://$host:$server_port$request_uri;   # http://…:8088 → https://…:8088
+location /_protected/ { internal; alias /www/data/movexa/; … }      # X-Accel-Redirect فقط
+location ~ ^/(app|apps)/ { proxy_set_header Host $http_host; proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade"; proxy_pass http://127.0.0.1:8080; }
 ```
-> بديل `auth_request` غير مطلوب: كل مقطع HLS يمر بـ `/m/{token}/…` في Laravel ثم يُسلَّم لـ Nginx داخلياً، ويدعم Range requests.
+5. **URL rewrite**: اتركه فارغاً (القاعدة `try_files` موجودة داخل الملف).
+6. ⚠️ **إذا غيّرت الشهادة أو المنفذ من الـ Panel، قد يعيد كتابة الملف**: افتح Config file وتأكد من أسطر `[8088]`: `listen 8088 ssl…` و`error_page 497…`، وأنه لا يوجد `listen 80` أو `listen 443`.
+7. التحقق:
+```bash
+curl --cacert rootCA.pem https://movexa.lan:8088/api/health        # {"status":"ok",...}
+curl -I http://movexa.lan:8088/                                     # 302 → https://movexa.lan:8088/
+```
+جُرِّب هذا الملف آلياً على nginx 1.24 حقيقي عبر `tests/nginx/run.sh` (انظر تقرير الحالة).
+
+### Reverb عبر 8088
+- المتصفح يتصل بـ `wss://movexa.lan:8088/app/...`، وNginx يمرر إلى Reverb على `127.0.0.1:8080` (لا يُفتح 8080 أبداً).
+- PHP يرسل الأحداث أيضاً إلى `https://movexa.lan:8088` (قيم `REVERB_HOST/PORT/SCHEME`)، لذا يجب أن **يثق PHP في شهادة CA المحلية**:
+```bash
+sudo cp rootCA.pem /usr/local/share/ca-certificates/movexa-local-ca.crt && sudo update-ca-certificates
+```
+  أو ضع المسار في `REVERB_CA_BUNDLE=/path/rootCA.pem`. ويجب أن يُحل `movexa.lan` على السيرفر نفسه (DNS المحلي، أو سطر في `/etc/hosts`: `127.0.0.1 movexa.lan`).
+- CSP يسمح فقط بـ `connect-src 'self' wss://movexa.lan:8088`.
+
+### كل ما يجب أن يتضمن المنفذ
+`APP_URL=https://movexa.lan:8088` (روابط QR، الروابط المطلقة)، Redirect URI في HomeCore: `https://movexa.lan:8088/auth/homecore/callback`، و`MOVEXA_URL` في CloudSync، و`start_url` للـ PWA نسبي فيعمل على نفس المنفذ. الروابط الموقعة `/m/...` نسبية فتأخذ المنفذ تلقائياً.
 
 ## 6. SSL والدومين الداخلي
 ```bash
 mkcert -install && mkcert movexa.lan     # على جهاز الإدارة؛ ثبّت rootCA.pem على كل جهاز عائلي
 ```
-Site → SSL → Other certificate: الصق `movexa.lan.pem` و`movexa.lan-key.pem`. (أو `tailscale cert`).
+Site → SSL → Other certificate: الصق `movexa.lan.pem` و`movexa.lan-key.pem` (أو `tailscale cert`). ثبّت `rootCA.pem` على كل جهاز (Android: الإعدادات ← الأمان ← تثبيت شهادة CA؛ iPhone: ملف تعريف ثم الإعدادات ← عام ← حول ← إعدادات الثقة بالشهادات)، وعلى السيرفر نفسه (لـ PHP→Reverb). Service Worker والتنزيلات تحتاج شهادة موثوقة على الجهاز.
 DNS: في Pi-hole/AdGuard Home → Local DNS: `movexa.lan → <IP السيرفر>` (أو DHCP/DNS في الراوتر).
 
 ## 7. Supervisor Manager (App Store)
@@ -117,7 +109,7 @@ DNS: في Pi-hole/AdGuard Home → Local DNS: `movexa.lan → <IP السيرفر
 - يومياً 03:20: `/www/wwwroot/movexa.lan/deploy/scripts/backup.sh` (نسخ aaPanel الافتراضي لا يشمل `/www/data/movexa`).
 
 ## 9. الجدار الناري (Security)
-- افتح 443 (و80 للتحويل) **مقيّدة بالمصدر**: `192.168.0.0/16` و`100.64.0.0/10` (Tailscale). لا تفتح 8080 (Reverb خلف Nginx فقط)، ولا 3306/6379.
+- افتح **8088 فقط** (TCP) **مقيّداً بالمصدر**: `192.168.0.0/16` و`100.64.0.0/10` (Tailscale). لا تفتح 80/443 لـ Movexa، ولا 8080 (Reverb خلف Nginx فقط)، ولا 3306/6379.
 - **منفذ لوحة aaPanel**: قيّده بالشبكة المحلية/VPN، فعّل Security entrance والمصادقة الثنائية للوحة.
 - `.env` خارج `public` دائماً.
 

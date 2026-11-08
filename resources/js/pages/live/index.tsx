@@ -1,7 +1,9 @@
-import { router } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
+import type { SharedData } from '@/types';
 import Hls from 'hls.js';
 import { Radio, Star, WifiOff } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { BlockDialog } from '@/components/movexa/block-dialog';
 import { isApple } from '@/components/movexa/player-utils';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -15,6 +17,7 @@ type Status = { status: string; viewers: number; restarts: number; latency: numb
 
 export default function Live({ channels }: { channels: Channel[] }) {
     const { t, locale } = useT();
+    const { profile, viewAs } = usePage<SharedData>().props;
     const [filter, setFilter] = useState('all');
     const [active, setActive] = useState<Channel | null>(null);
     const [stream, setStream] = useState<{ id: number; src: string } | null>(null);
@@ -88,6 +91,12 @@ export default function Live({ channels }: { channels: Channel[] }) {
                             <div className="flex flex-wrap items-center gap-3">
                                 <h1 dir="auto" className="text-xl font-bold">{active.name}</h1>
                                 <span className="flex items-center gap-1 rounded bg-primary px-2 text-xs font-bold text-primary-foreground">● LIVE</span>
+                                {!profile?.is_kid && !viewAs && (
+                                    <BlockDialog trigger={<Button size="sm" variant="ghost">{t.blocks.blockFrom}</Button>} targets={[
+                                        { type: 'channel', id: active.id, label: `${t.blocks.thisChannel}: ${active.name}` },
+                                        ...(active.category ? [{ type: 'channel_category', value: active.category, label: `${t.blocks.thisCategory}: ${active.category}` }] : []),
+                                    ]} />
+                                )}
                                 {status && (
                                     <span className="text-xs text-muted-foreground">
                                         {status.latency !== null && `${t.liveTv.latency} ≈ ${status.latency}s · `}{status.viewers} {t.liveTv.viewers}{status.quality && ` · ${status.quality}`}

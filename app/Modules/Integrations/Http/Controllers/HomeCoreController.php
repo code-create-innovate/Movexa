@@ -27,8 +27,9 @@ class HomeCoreController extends Controller
         if (! $profile) {
             return ['items' => []];
         }
-        $rows = WatchProgress::with('item', 'episode.season')->where('profile_id', $profile->id)->where('completed', false)
-            ->where('position', '>', 30)->latest('updated_at')->limit(3)->get();
+        $rows = WatchProgress::with('item', 'episode.season', 'file.item', 'file.episode')->where('profile_id', $profile->id)->where('completed', false)
+            ->where('position', '>', 30)->latest('updated_at')->limit(20)->get()
+            ->filter(fn ($p) => $p->file && $p->file->viewableBy($profile))->take(3)->values();
 
         return ['items' => $rows->map(fn ($p) => [
             'id' => $p->item->id,
@@ -37,13 +38,16 @@ class HomeCoreController extends Controller
             'episode' => $p->episode ? ['season' => $p->episode->season->number, 'number' => $p->episode->number] : null,
             'progress' => $p->duration ? round($p->position / $p->duration, 3) : null,
             // HomeCore renders posters through its own proxy endpoint, which calls /api/homecore/poster/{id}.
-            'poster' => $p->item->poster_path ? url('/api/homecore/poster/'.$p->item->id) : null,
+            'poster' => $p->item->poster_path ? url('/api/homecore/poster/'.$p->item->id.'?user='.urlencode($request->query('user'))) : null,
             'url' => url('/title/'.$p->item->id),
         ])];
     }
 
-    public function poster(MediaItem $item)
+    public function poster(Request $request, MediaItem $item)
     {
+        // Only posters of titles the given user's main profile may see.
+        $profile = $this->profileFor((string) $request->query('user'));
+        abort_unless($profile && app(\App\Modules\Core\Services\AccessPolicy::class)->allowsItem($profile, $item), 404);
         abort_unless($item->poster_path, 404);
         $path = config('movexa.paths.images').'/'.$item->poster_path;
         abort_unless(is_file($path), 404);
@@ -69,14 +73,22 @@ class HomeCoreController extends Controller
     }
 
     /** For HomeCore's "mx <query>" shortcut. Adult-filtering is HomeCore's own concern: only titles + links, no media. */
+    private function profileFor(string $sub): ?\App\Modules\Core\Models\Profile
+    {
+        $user = $sub !== '' ? User::where('oidc_subject', $sub)->first() : null;
+
+        return $user?->profiles()->where('is_kid', false)->orderBy('id')->first();
+    }
+
     public function search(Request $request)
     {
         $q = trim((string) $request->query('q'));
-        if (mb_strlen($q) < 2) {
-            return ['results' => []];
+        $profile = $this->profileFor((string) $request->query('user'));
+        if (mb_strlen($q) < 2 || ! $profile) {
+            return ['results' => []]; // no user → nothing (policy is per person)
         }
         $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $q).'%';
-        $items = MediaItem::whereHas('files', fn ($f) => $f->where('status', 'ready'))
+        $items = MediaItem::visibleTo($profile)
             ->where(fn ($w) => $w->where('title', 'like', $like)->orWhere('title_ar', 'like', $like)->orWhere('original_title', 'like', $like))
             ->limit(10)->get(['id', 'type', 'title', 'title_ar', 'year']);
 

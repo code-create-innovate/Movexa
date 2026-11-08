@@ -22,8 +22,8 @@ class MediaPresenter
             'age_rating' => $item->age_rating,
             'vote' => $item->vote_average,
             'genres' => $item->genres ?? [],
-            'poster' => $item->poster_path ? $this->signer->url('img', $item->id, $profile->user_id, $profile->id, 'poster') : null,
-            'backdrop' => $item->backdrop_path ? $this->signer->url('img', $item->id, $profile->user_id, $profile->id, 'backdrop') : null,
+            'poster' => $item->poster_path ? $this->signer->url('img', $item->id, auth()->id() ?? $profile->user_id, $profile->id, 'poster') : null,
+            'backdrop' => $item->backdrop_path ? $this->signer->url('img', $item->id, auth()->id() ?? $profile->user_id, $profile->id, 'backdrop') : null,
         ];
     }
 

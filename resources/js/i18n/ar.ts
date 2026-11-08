@@ -32,5 +32,13 @@ export default {
         maxStreams: 'حد البثوث', admin: 'مسؤول', rematch: 'تصحيح', intro: 'المقدمة (ثوانٍ)', cpu: 'حمل المعالج', available: 'متاح', unavailable: 'غير متاح',
         securityUpdates: 'تحديثات أمنية متاحة',
     },
+    blocks: {
+        title: 'الحجب المخصص', blockFrom: 'احجب عن…', target: 'المحتوى', subject: 'المحجوب عنه', until: 'حتى', forever: 'دائم', expires: 'ينتهي',
+        profiles: 'ملفات شخصية', accounts: 'حسابات كاملة', secret: 'كلمة المرور أو PIN للتأكيد', add: 'احجب', remove: 'إلغاء الحجب', removeSelected: 'إلغاء المحدد',
+        byPerson: 'حسب الشخص', byContent: 'حسب المحتوى', noPinWarning: 'تنبيه: في حسابك ملفات بدون PIN. يستطيع أي شخص التبديل إلى ملف غير محجوب، فالحجب بين ملفات الحساب الواحد لا يكون فعالاً دون PIN.',
+        viewAs: 'عرض كـ', viewingAs: 'أنت تعرض المنصة كما يراها هذا الملف (قراءة فقط).', exitViewAs: 'إنهاء العرض', audit: 'سجل التدقيق', empty: 'لا يوجد حجب',
+        types: { item: 'عمل', season: 'موسم', episode: 'حلقة', genre: 'نوع', collection: 'مجموعة', tag: 'وسم', library: 'مكتبة', channel: 'قناة', channel_category: 'فئة قنوات' },
+        thisTitle: 'هذا العمل', thisSeason: 'هذا الموسم', thisChannel: 'هذه القناة', thisCategory: 'فئة القناة',
+    },
     twoFactor: { title: 'المصادقة الثنائية', enable: 'تفعيل', disable: 'تعطيل', enabled: 'مفعّلة', scan: 'أضف هذا المفتاح في تطبيق المصادقة ثم أدخل الرمز', code: 'رمز التحقق', password: 'كلمة المرور', verify: 'تحقق' },
 };

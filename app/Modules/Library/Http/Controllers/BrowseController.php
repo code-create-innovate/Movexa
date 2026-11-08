@@ -22,7 +22,7 @@ class BrowseController extends Controller
 
         $continue = WatchProgress::with('item', 'episode.season')->where('profile_id', $profile->id)->where('completed', false)
             ->where('position', '>', 15)->latest('updated_at')->limit(20)->get()
-            ->filter(fn ($p) => $p->item && $profile->allowsRating($p->item->age_rating))
+            ->filter(fn ($p) => $p->file && $p->file->viewableBy($profile))
             ->map(fn ($p) => $this->present->card($p->item, $profile) + [
                 'progress' => $p->duration ? min(1, $p->position / $p->duration) : 0,
                 'file_id' => $p->media_file_id,
@@ -60,7 +60,7 @@ class BrowseController extends Controller
             }
             $next = $this->episodeAfter($p->episode);
             $item = $next?->show;
-            if ($next && $next->file && $item && $profile->allowsRating($item->age_rating)) {
+            if ($next && $next->file && $item && $next->file->viewableBy($profile)) {
                 $out[] = $this->present->card($item, $profile) + ['file_id' => $next->file->id, 'episode' => ['season' => $next->season->number, 'number' => $next->number]];
             }
         }
@@ -87,7 +87,7 @@ class BrowseController extends Controller
         $ar = app()->getLocale() === 'ar';
         $progress = WatchProgress::where('profile_id', $profile->id)->where('media_item_id', $item->id)->get()->keyBy('media_file_id');
 
-        $files = $item->files()->where('status', 'ready')->with('streams', 'subtitles')->get();
+        $files = $item->files()->where('status', 'ready')->with('streams', 'subtitles', 'item', 'episode')->get()->filter(fn ($f) => $f->viewableBy($profile))->values();
         $fileInfo = fn ($f) => $f ? [
             'id' => $f->id, 'duration' => $f->duration, 'height' => $f->height, 'sanitized' => $f->sanitized,
             'audio' => $f->streams->where('type', 'audio')->map(fn ($s) => ['language' => $s->language, 'title' => $s->title, 'codec' => $s->codec, 'channels' => $s->channels])->values(),
@@ -95,9 +95,11 @@ class BrowseController extends Controller
             'progress' => isset($progress[$f->id]) ? ['position' => $progress[$f->id]->position, 'completed' => $progress[$f->id]->completed] : null,
         ] : null;
 
+        $policy = app(\App\Modules\Core\Services\AccessPolicy::class);
         $seasons = $item->type === 'show' ? $item->seasons()->with(['episodes.file.streams', 'episodes.file.subtitles'])->get()->map(fn ($s) => [
+            'id' => $s->id,
             'number' => $s->number,
-            'episodes' => $s->episodes->filter(fn ($e) => $e->file)->map(fn ($e) => [
+            'episodes' => $s->episodes->filter(fn ($e) => $e->file && $policy->allowsEpisode($profile, $e))->map(fn ($e) => [
                 'id' => $e->id, 'number' => $e->number, 'title' => $ar && $e->title_ar ? $e->title_ar : $e->title,
                 'overview' => $e->overview, 'file' => $fileInfo($e->file),
             ])->values(),

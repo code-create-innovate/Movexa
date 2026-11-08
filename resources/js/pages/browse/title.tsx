@@ -1,5 +1,7 @@
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
+import type { SharedData } from '@/types';
 import { Check, Heart, Play, Plus, ShieldCheck, ThumbsDown, ThumbsUp, Users } from 'lucide-react';
+import { BlockDialog } from '@/components/movexa/block-dialog';
 import { Poster } from '@/components/movexa/media-row';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -17,8 +19,9 @@ type FileInfo = {
 type Episode = { id: number; number: number; title: string | null; overview: string | null; file: FileInfo };
 type Item = Card & { overview: string | null; original_title: string | null; certification: string | null; cast: { name: string; character: string | null }[]; in_list: boolean; rating: number | null };
 
-export default function Title({ item, file, seasons }: { item: Item; file: FileInfo | null; seasons: { number: number; episodes: Episode[] }[] }) {
+export default function Title({ item, file, seasons }: { item: Item; file: FileInfo | null; seasons: { id: number; number: number; episodes: Episode[] }[] }) {
     const { t } = useT();
+    const { profile, viewAs } = usePage<SharedData>().props;
     const first = file ?? seasons[0]?.episodes[0]?.file ?? null;
     const resumeEp = seasons.flatMap((s) => s.episodes).find((e) => e.file.progress && !e.file.progress.completed);
     const target = resumeEp?.file ?? first;
@@ -54,6 +57,13 @@ export default function Title({ item, file, seasons }: { item: Item; file: FileI
                             </Button>
                             {target && (
                                 <Button size="lg" variant="outline" onClick={() => router.post(`/party/${target.id}`)}><Users /> {t.watchParty}</Button>
+                            )}
+                            {!profile?.is_kid && !viewAs && (
+                                <BlockDialog targets={[
+                                    { type: 'item', id: item.id, label: `${t.blocks.thisTitle}: ${item.title}` },
+                                    ...seasons.map((s) => ({ type: 'season', id: s.id, label: `${t.blocks.thisSeason}: ${t.season} ${s.number}` })),
+                                    ...item.genres.map((g) => ({ type: 'genre', value: g, label: `${t.blocks.types.genre}: ${g}` })),
+                                ]} />
                             )}
                             <div className="flex gap-1">
                                 <Button size="icon" variant={item.rating === -1 ? 'default' : 'ghost'} onClick={() => rate(-1)} aria-label={t.dislike}><ThumbsDown /></Button>

@@ -35,6 +35,6 @@ class TranscodeMediaJob implements ShouldQueue
 
             return;
         }
-        $packager->run($job, fn (int $pct) => rescue(fn () => broadcast(new TranscodeProgressed($job->id, $job->media_file_id, $pct)), report: false));
+        $packager->run($job, fn (int $pct) => \App\Support\Realtime::send(new TranscodeProgressed($job->id, $job->media_file_id, $pct)));
     }
 }

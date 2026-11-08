@@ -31,12 +31,6 @@ class Channel extends Model
 
     public function scopeVisibleTo(Builder $q, Profile $profile): Builder
     {
-        $q->where('enabled', true);
-        if (($limit = $profile->ageLimit()) !== null) {
-            // Kids: only channels explicitly rated within the limit, or the "kids" category.
-            $q->where(fn ($w) => $w->where('category', 'kids')->orWhere(fn ($r) => $r->whereNotNull('age_rating')->where('age_rating', '<=', $limit)));
-        }
-
-        return $q;
+        return app(\App\Modules\Core\Services\AccessPolicy::class)->scopeChannels($q, $profile);
     }
 }

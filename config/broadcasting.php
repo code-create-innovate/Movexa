@@ -42,7 +42,11 @@ return [
                 'useTLS' => env('REVERB_SCHEME', 'https') === 'https',
             ],
             'client_options' => [
-                // Guzzle client options: https://docs.guzzlephp.org/en/stable/request-options.html
+                // PHP publishes events to Reverb through the public https://movexa.lan:8088 address.
+                // The local CA must be trusted: install it system-wide (update-ca-certificates) or point
+                // REVERB_CA_BUNDLE to the mkcert rootCA.pem.
+                'verify' => env('REVERB_CA_BUNDLE') ?: true,
+                'timeout' => 5,
             ],
         ],
 

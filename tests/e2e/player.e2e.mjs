@@ -10,16 +10,16 @@ const SHOTS = process.env.SHOTS ?? '.';
 const step = (m) => console.log('✓', m);
 const fail = (m) => { console.error('✗', m); process.exit(1); };
 
-const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+// NGINX=1: go through the real nginx on :8088 (movexa.lan → 127.0.0.1, local CA accepted).
+const browser = await chromium.launch(process.env.NGINX ? { args: ['--host-resolver-rules=MAP movexa.lan 127.0.0.1', '--no-proxy-server'] } : {});
+const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, ignoreHTTPSErrors: !!process.env.NGINX });
 page.on('pageerror', (e) => console.error('pageerror', e.message));
 try {
-    // Unauthenticated media access is refused
-    const blocked = await page.request.get(`${BASE}/m/x.y/stream.mp4`, { maxRedirects: 0 });
-    if (blocked.status() !== 403) fail(`media without session returned ${blocked.status()}`);
-    step(`media without session → ${blocked.status()}`);
-
     await page.goto(`${BASE}/login`);
+    // Unauthenticated media access is refused (no redirect to login, no intended-URL)
+    const blocked = await page.evaluate(() => fetch('/m/x.y/stream.mp4', { redirect: 'manual' }).then((r) => r.status));
+    if (blocked !== 403) fail(`media without session returned ${blocked}`);
+    step(`media without session → ${blocked}`);
     await page.fill('#email', 'admin@e2e.lan');
     await page.fill('#password', 'password-e2e');
     await Promise.all([page.waitForURL('**/profiles'), page.click('button[type=submit]')]);

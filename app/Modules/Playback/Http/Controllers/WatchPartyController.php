@@ -37,7 +37,7 @@ class WatchPartyController extends Controller
         $data = $request->validate(['action' => ['required', 'in:play,pause,seek'], 'position' => ['required', 'numeric', 'min:0']]);
         $party->update(['position' => $data['position'], 'playing' => $data['action'] === 'play' || ($data['action'] === 'seek' && $party->playing), 'state_at' => now()]);
         $payload = $this->payload($party) + ['action' => $data['action'], 'by' => mb_substr((string) $request->input('client', ''), 0, 40)];
-        rescue(fn () => broadcast(new PartyStateChanged($party->uuid, $payload)), report: false);
+        \App\Support\Realtime::send(new PartyStateChanged($party->uuid, $payload));
 
         return $payload;
     }
@@ -54,7 +54,7 @@ class WatchPartyController extends Controller
         abort_if($body === '', 422);
         $m = $party->messages()->create(['profile_id' => $request->attributes->get('profile')->id, 'body' => $body]);
         $out = $this->format($m->fresh());
-        rescue(fn () => broadcast(new PartyMessagePosted($party->uuid, $out)), report: false);
+        \App\Support\Realtime::send(new PartyMessagePosted($party->uuid, $out));
 
         return $out;
     }

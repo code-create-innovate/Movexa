@@ -24,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trustProxies(at: ['127.0.0.1', '::1']);
         $middleware->web(append: [
             SetLocale::class,
+            \App\Modules\Core\Http\Middleware\ViewAsReadOnly::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
             SecurityHeaders::class,

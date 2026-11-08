@@ -15,7 +15,11 @@ class SecurityHeaders
         $nonce = Vite::cspNonce();
         $dev = app()->environment('local') && file_exists(public_path('hot'));
         $vite = $dev ? ' http://localhost:5173 ws://localhost:5173' : '';
-        $reverb = ' ws: wss:';
+        // WebSocket only to our own Reverb endpoint (https://movexa.lan:8088 → wss://movexa.lan:8088).
+        $o = config('broadcasting.connections.reverb.options');
+        $reverb = config('broadcasting.default') === 'reverb' && ! empty($o['host'])
+            ? ' '.(($o['scheme'] ?? 'https') === 'https' ? 'wss' : 'ws').'://'.$o['host'].(! empty($o['port']) ? ':'.$o['port'] : '')
+            : '';
 
         $csp = implode('; ', [
             "default-src 'self'",

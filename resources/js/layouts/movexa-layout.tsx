@@ -1,5 +1,5 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { ArrowLeftRight, Film, Globe, Home, House, List, LogOut, Menu, Radio, Search, Settings, Shield, Tv } from 'lucide-react';
+import { ArrowLeftRight, Ban, Film, Globe, Home, House, List, LogOut, Menu, Radio, Search, Settings, Shield, Tv } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
 import { SearchCommand } from '@/components/movexa/search-command';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,7 @@ export function switchLanguage(current: 'ar' | 'en') {
 }
 
 export default function MovexaLayout({ title, children, transparent = false }: { title?: string; children: ReactNode; transparent?: boolean }) {
-    const { auth, profile, homecore, locale } = usePage<SharedData>().props;
+    const { auth, profile, homecore, locale, viewAs } = usePage<SharedData>().props;
     const { t } = useT();
     const [scrolled, setScrolled] = useState(false);
     const [searchOpen, setSearchOpen] = useState(false);
@@ -99,6 +99,7 @@ export default function MovexaLayout({ title, children, transparent = false }: {
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem asChild><Link href="/profiles"><ArrowLeftRight /> {t.switchProfile}</Link></DropdownMenuItem>
                                     {!profile.is_kid && <DropdownMenuItem asChild><Link href="/settings/profile"><Settings /> {t.settings}</Link></DropdownMenuItem>}
+                                    {!profile.is_kid && !viewAs && <DropdownMenuItem asChild><Link href="/blocks"><Ban /> {t.blocks.title}</Link></DropdownMenuItem>}
                                     <DropdownMenuItem asChild><Link href="/live"><Tv /> {t.live}</Link></DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem onClick={() => router.post('/logout')}><LogOut /> {t.logout}</DropdownMenuItem>
@@ -108,6 +109,12 @@ export default function MovexaLayout({ title, children, transparent = false }: {
                     </div>
                 </div>
             </header>
+            {viewAs && (
+                <div className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-center gap-3 bg-amber-500 p-2 text-sm text-black">
+                    <span dir="auto">{t.blocks.viewingAs} ({profile?.name})</span>
+                    <Button size="sm" variant="secondary" onClick={() => router.post('/view-as/exit')}>{t.blocks.exitViewAs}</Button>
+                </div>
+            )}
             <main className={cn(!transparent && 'pt-16')}>{children}</main>
             <SearchCommand open={searchOpen} onOpenChange={setSearchOpen} />
         </div>

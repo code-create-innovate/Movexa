@@ -34,6 +34,14 @@ const en: typeof ar = {
         maxStreams: 'Stream limit', admin: 'Admin', rematch: 'Fix', intro: 'Intro (seconds)', cpu: 'CPU load', available: 'available', unavailable: 'unavailable',
         securityUpdates: 'Security updates available',
     },
+    blocks: {
+        title: 'Custom blocking', blockFrom: 'Block from…', target: 'Content', subject: 'Blocked for', until: 'Until', forever: 'Permanent', expires: 'Expires',
+        profiles: 'Profiles', accounts: 'Whole accounts', secret: 'Password or PIN to confirm', add: 'Block', remove: 'Unblock', removeSelected: 'Unblock selected',
+        byPerson: 'By person', byContent: 'By content', noPinWarning: 'Warning: your account has profiles without a PIN. Anyone can switch to an unblocked profile, so blocks between profiles of one account are not effective without PINs.',
+        viewAs: 'View as', viewingAs: 'You are viewing Movexa as this profile sees it (read-only).', exitViewAs: 'Exit', audit: 'Audit log', empty: 'No blocks',
+        types: { item: 'Title', season: 'Season', episode: 'Episode', genre: 'Genre', collection: 'Collection', tag: 'Tag', library: 'Library', channel: 'Channel', channel_category: 'Channel category' },
+        thisTitle: 'This title', thisSeason: 'This season', thisChannel: 'This channel', thisCategory: 'Channel category',
+    },
     twoFactor: { title: 'Two-factor authentication', enable: 'Enable', disable: 'Disable', enabled: 'Enabled', scan: 'Add this key to your authenticator app, then enter the code', code: 'Verification code', password: 'Password', verify: 'Verify' },
 };
 export default en;

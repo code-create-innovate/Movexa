@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Episode extends Model
 {
-    protected $fillable = ['season_id', 'media_item_id', 'number', 'title', 'title_ar', 'overview', 'still_path'];
+    protected $fillable = ['season_id', 'media_item_id', 'number', 'title', 'title_ar', 'overview', 'overview_ar', 'still_path'];
 
     public function season(): BelongsTo
     {

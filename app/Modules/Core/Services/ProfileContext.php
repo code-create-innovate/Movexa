@@ -20,7 +20,18 @@ class ProfileContext
             return null;
         }
 
-        return once(fn () => $user->profiles()->whereKey($id)->first());
+        // Admin "view as" (read-only): browse as any profile.
+        $va = $this->request->session()->get('view_as');
+        if ($va && $user->is_admin) {
+            return Profile::find($va['profile']);
+        }
+
+        return $user->profiles()->whereKey($id)->first();
+    }
+
+    public function viewingAs(): bool
+    {
+        return $this->request->hasSession() && $this->request->session()->has('view_as') && (bool) $this->request->user()?->is_admin;
     }
 
     public function set(Profile $profile): void

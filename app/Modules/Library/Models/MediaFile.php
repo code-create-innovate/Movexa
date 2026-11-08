@@ -45,6 +45,6 @@ class MediaFile extends Model
 
     public function viewableBy(Profile $profile): bool
     {
-        return $this->isReady() && $this->item && $profile->allowsRating($this->item->age_rating);
+        return app(\App\Modules\Core\Services\AccessPolicy::class)->allowsFile($profile, $this);
     }
 }

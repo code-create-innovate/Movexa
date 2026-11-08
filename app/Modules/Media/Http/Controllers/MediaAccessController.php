@@ -48,7 +48,7 @@ class MediaAccessController extends Controller
             'sub' => [$this->subtitle((int) $claims['i'], $profile), false],
             'img' => [$this->image((int) $claims['i'], $path, $profile), false],
             'thumb' => [$this->thumb((int) $claims['i'], $path, $profile), false],
-            'live' => [$this->live((int) $claims['i'], $path, $request), false],
+            'live' => [$this->live((int) $claims['i'], $path, $request, $profile), false],
             default => abort(404),
         };
         abort_unless($abs && is_file($abs), 404);
@@ -86,10 +86,18 @@ class MediaAccessController extends Controller
     private function image(int $id, string $path, $profile): ?string
     {
         $item = MediaItem::find($id);
-        if (! $item || ! $profile->allowsRating($item->age_rating) || ! in_array($path, ['poster', 'backdrop'], true)) {
+        if (! in_array($path, ['poster', 'backdrop', 'poster_small', 'preview'], true) || ! app(\App\Modules\Core\Services\AccessPolicy::class)->allowsItem($profile, $item)) {
             return null;
         }
-        $rel = $path === 'poster' ? $item->poster_path : $item->backdrop_path;
+        $rel = match ($path) {
+            'poster' => $item->poster_path,
+            'backdrop' => $item->backdrop_path,
+            'poster_small' => $item->poster_path ? preg_replace('/\.(\w+)$/', '_small.webp', $item->poster_path) : null,
+            'preview' => $item->preview_path,
+        };
+        if ($path === 'poster_small' && $rel && ! is_file(config('movexa.paths.images').'/'.$rel)) {
+            $rel = $item->poster_path; // small version not generated yet
+        }
 
         return $rel ? config('movexa.paths.images').'/'.$rel : null;
     }
@@ -101,10 +109,10 @@ class MediaAccessController extends Controller
         return $f && $f->viewableBy($profile) && $f->thumbnails_path ? $f->thumbnails_path.'/'.$path : null;
     }
 
-    private function live(int $id, string $path, Request $request): ?string
+    private function live(int $id, string $path, Request $request, $profile): ?string
     {
-        $stream = LiveStream::find($id);
-        if (! $stream) {
+        $stream = LiveStream::with('channel')->find($id);
+        if (! $stream || ! app(\App\Modules\Core\Services\AccessPolicy::class)->allowsChannel($profile, $stream->channel)) {
             return null;
         }
         if (str_ends_with($path, '.m3u8')) {
