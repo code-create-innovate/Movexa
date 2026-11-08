@@ -92,6 +92,42 @@ class AccessBlockTest extends TestCase
         $this->getJson('/search?q=Horror')->assertJsonCount(1, 'results');
     }
 
+    public function test_block_also_covers_banner_wall_top10_pick_history_downloads_and_party(): void
+    {
+        config(['movexa.transcode.hwaccel' => 'none']);
+        $this->owner->update(['downloads_enabled' => true]);
+        $this->movie->item->update(['backdrop_path' => 'p.webp', 'featured' => true]);
+        // Real data for Top 10 (needs ≥ 5 titles) and history.
+        $others = [];
+        foreach (range(1, 5) as $i) {
+            $others[] = MediaFixtures::readyMovie($this->dataRoot.'/library', ['title' => "Other {$i}", 'age_rating' => 0, 'poster_path' => 'p.webp']);
+        }
+        foreach (array_merge([$this->movie], $others) as $f) {
+            \Illuminate\Support\Facades\DB::table('view_events')->insert(['profile_id' => $this->a->id, 'media_item_id' => $f->media_item_id, 'counted_at' => now()]);
+            \Illuminate\Support\Facades\DB::table('watch_history')->insert(['profile_id' => $this->b->id, 'media_item_id' => $f->media_item_id, 'watched_at' => now()]);
+        }
+        \Illuminate\Support\Facades\DB::table('view_events')->insert(['profile_id' => $this->a->id, 'media_item_id' => $this->movie->media_item_id, 'counted_at' => now()]);
+        $this->as($this->b);
+        $uuid = str($this->post("/party/{$this->movie->id}")->headers->get('Location'))->after('party=')->toString();
+        $dl = $this->postJson('/downloads', ['file_id' => $this->movie->id, 'quality' => 480])->assertCreated()->json('uuid');
+
+        $this->block('item', $this->movie->media_item_id);
+        $id = $this->movie->media_item_id;
+        $props = $this->get('/home')->viewData('page')['props'];
+        $this->assertNotContains($id, array_column($props['banner'], 'id'));
+        $this->assertSame(5, count($props['wall'])); // the 5 others only
+        $top = collect($props['rows'])->firstWhere('key', 'top_movies');
+        $this->assertNotContains($id, array_column($top['items'], 'id'));
+        for ($i = 0; $i < 8; $i++) {
+            $this->withSession(['pick_recent' => []]);
+            $this->assertNotSame($id, $this->getJson('/pick')->json('item.id'));
+        }
+        $this->get('/history')->assertInertia(fn ($p) => $p->where('entries', fn ($e) => collect($e)->pluck('id')->doesntContain($id)));
+        $this->getJson("/party/{$uuid}/state")->assertNotFound();        // no details of the party either
+        $this->getJson("/downloads/{$dl}/manifest")->assertNotFound();
+        $this->get('/downloads')->assertInertia(fn ($p) => $p->has('downloads', 0));
+    }
+
     public function test_genre_block_applies_to_titles_added_later(): void
     {
         $this->block('genre', null, 'horror');
