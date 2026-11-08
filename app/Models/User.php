@@ -13,7 +13,7 @@ class User extends Authenticatable
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
 
-    protected $fillable = ['name', 'email', 'password', 'locale', 'is_admin', 'is_emergency_admin', 'oidc_subject', 'max_concurrent_streams'];
+    protected $fillable = ['name', 'email', 'password', 'locale', 'is_admin', 'is_emergency_admin', 'oidc_subject', 'max_concurrent_streams', 'downloads_enabled', 'downloads_quota_mb', 'downloads_max'];
 
     protected $hidden = ['password', 'remember_token', 'two_factor_secret', 'parental_pin_hash'];
 
@@ -23,6 +23,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_admin' => 'boolean',
+            'downloads_enabled' => 'boolean',
             'is_emergency_admin' => 'boolean',
             'two_factor_secret' => 'encrypted',
             'two_factor_confirmed_at' => 'datetime',

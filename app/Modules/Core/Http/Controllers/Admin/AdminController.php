@@ -54,7 +54,7 @@ class AdminController extends Controller
             'top' => DB::table('watch_history')->select('media_item_id', DB::raw('count(*) as plays'))->groupBy('media_item_id')->orderByDesc('plays')->limit(10)->get()
                 ->map(fn ($r) => ['title' => MediaItem::find($r->media_item_id)?->title, 'plays' => $r->plays]),
             'libraries' => Library::withCount('items')->get(),
-            'users' => User::withCount('profiles')->get(['id', 'name', 'email', 'is_admin', 'is_emergency_admin', 'max_concurrent_streams']),
+            'users' => User::withCount('profiles')->get(['id', 'name', 'email', 'is_admin', 'is_emergency_admin', 'max_concurrent_streams', 'downloads_enabled', 'downloads_quota_mb', 'downloads_max']),
             'limits' => ['streams_per_user' => config('movexa.limits.streams_per_user'), 'max_transcodes' => config('movexa.transcode.max_concurrent')],
         ]);
     }
@@ -96,7 +96,8 @@ class AdminController extends Controller
 
     public function updateUser(Request $request, User $user)
     {
-        $data = $request->validate(['is_admin' => ['boolean'], 'max_concurrent_streams' => ['nullable', 'integer', 'between:1,20']]);
+        $data = $request->validate(['is_admin' => ['boolean'], 'max_concurrent_streams' => ['nullable', 'integer', 'between:1,20'],
+            'downloads_enabled' => ['boolean'], 'downloads_quota_mb' => ['integer', 'between:100,1000000'], 'downloads_max' => ['integer', 'between:1,200']]);
         abort_if($user->id === $request->user()->id && array_key_exists('is_admin', $data) && ! $data['is_admin'], 422);
         $user->forceFill($data)->save();
 

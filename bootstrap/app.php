@@ -25,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             SetLocale::class,
             \App\Modules\Core\Http\Middleware\ViewAsReadOnly::class,
+            \App\Modules\Devices\Http\Middleware\DeviceSessionGuard::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
             SecurityHeaders::class,

@@ -9,7 +9,7 @@ namespace App\Modules\Core\Services;
  */
 class MediaSigner
 {
-    public const KINDS = ['file', 'hls', 'sub', 'img', 'thumb', 'live', 'rec'];
+    public const KINDS = ['file', 'hls', 'sub', 'img', 'thumb', 'live', 'rec', 'dl'];
 
     public function sign(string $kind, int|string $id, int $userId, ?int $profileId = null, ?int $ttl = null): string
     {

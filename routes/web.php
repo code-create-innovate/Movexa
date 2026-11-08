@@ -28,6 +28,13 @@ Route::get('locale/{lang}', function (string $lang) {
     return redirect(str_starts_with($back, '/') && ! str_starts_with($back, '//') ? $back : '/');
 })->name('locale');
 
+// TV sign-in with QR / code (guest side) — local, works without HomeCore.
+Route::middleware('guest')->group(function () {
+    Route::get('tv', [\App\Modules\Devices\Http\Controllers\DeviceLoginController::class, 'tv'])->name('tv');
+    Route::post('device-login/start', [\App\Modules\Devices\Http\Controllers\DeviceLoginController::class, 'start'])->middleware('throttle:10,1');
+    Route::post('device-login/poll', [\App\Modules\Devices\Http\Controllers\DeviceLoginController::class, 'poll'])->middleware('throttle:90,1');
+});
+
 Route::post('view-as/exit', [\App\Modules\Core\Http\Controllers\BlockController::class, 'exitViewAs'])->middleware('auth')->name('view-as.exit');
 
 // HomeCore SSO (OIDC + PKCE)
@@ -51,6 +58,12 @@ Route::middleware('auth')->group(function () {
     Route::patch('profiles/{profile}', [ProfileController::class, 'update'])->name('profiles.update');
     Route::delete('profiles/{profile}', [ProfileController::class, 'destroy'])->name('profiles.destroy');
     Route::put('settings/parental-pin', [ProfileController::class, 'parentalPin'])->name('parental-pin.update');
+
+    Route::get('link', [\App\Modules\Devices\Http\Controllers\DeviceLoginController::class, 'link'])->name('link');
+    Route::get('device-login/lookup', [\App\Modules\Devices\Http\Controllers\DeviceLoginController::class, 'lookup'])->middleware('throttle:10,1');
+    Route::post('device-login/approve', [\App\Modules\Devices\Http\Controllers\DeviceLoginController::class, 'approve'])->middleware('throttle:10,1');
+    Route::get('devices', [\App\Modules\Devices\Http\Controllers\DeviceLoginController::class, 'devices'])->name('devices');
+    Route::delete('devices/{device}', [\App\Modules\Devices\Http\Controllers\DeviceLoginController::class, 'revoke'])->name('devices.revoke');
 
     Route::get('settings/two-factor', [TwoFactorController::class, 'show'])->name('two-factor.show');
     Route::post('settings/two-factor', [TwoFactorController::class, 'start'])->name('two-factor.start');
@@ -79,6 +92,20 @@ Route::middleware('auth')->group(function () {
         Route::get('party/{uuid}/state', [WatchPartyController::class, 'state'])->name('party.state');
         Route::post('party/{uuid}/state', [WatchPartyController::class, 'update'])->name('party.update');
         Route::post('party/{uuid}/messages', [WatchPartyController::class, 'message'])->middleware('throttle:30,1')->name('party.message');
+
+        Route::get('pick', \App\Modules\Library\Http\Controllers\PickController::class)->middleware('throttle:60,1')->name('pick');
+
+        Route::get('remote', [\App\Modules\Devices\Http\Controllers\RemoteController::class, 'page'])->name('remote');
+        Route::post('remote/register', [\App\Modules\Devices\Http\Controllers\RemoteController::class, 'register']);
+        Route::get('remote/devices', [\App\Modules\Devices\Http\Controllers\RemoteController::class, 'devices']);
+        Route::post('remote/{uuid}/state', [\App\Modules\Devices\Http\Controllers\RemoteController::class, 'state'])->middleware('throttle:120,1');
+        Route::post('remote/{uuid}/command', [\App\Modules\Devices\Http\Controllers\RemoteController::class, 'command'])->middleware('throttle:120,1');
+
+        Route::get('downloads', [\App\Modules\Devices\Http\Controllers\DownloadController::class, 'index'])->name('downloads');
+        Route::post('downloads', [\App\Modules\Devices\Http\Controllers\DownloadController::class, 'store'])->middleware('throttle:20,1');
+        Route::get('downloads/{uuid}/manifest', [\App\Modules\Devices\Http\Controllers\DownloadController::class, 'manifest']);
+        Route::post('downloads/sync', [\App\Modules\Devices\Http\Controllers\DownloadController::class, 'sync']);
+        Route::delete('downloads/{uuid}', [\App\Modules\Devices\Http\Controllers\DownloadController::class, 'destroy']);
 
         Route::get('live', [LiveController::class, 'index'])->name('live');
         Route::post('live/{channel}/watch', [LiveController::class, 'watch'])->name('live.watch');

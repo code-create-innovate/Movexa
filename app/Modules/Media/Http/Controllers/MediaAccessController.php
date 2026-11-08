@@ -48,6 +48,7 @@ class MediaAccessController extends Controller
             'sub' => [$this->subtitle((int) $claims['i'], $profile), false],
             'img' => [$this->image((int) $claims['i'], $path, $profile), false],
             'thumb' => [$this->thumb((int) $claims['i'], $path, $profile), false],
+            'dl' => [$this->download((int) $claims['i'], $profile), true],
             'live' => [$this->live((int) $claims['i'], $path, $request, $profile), false],
             default => abort(404),
         };
@@ -74,6 +75,14 @@ class MediaAccessController extends Controller
         }
 
         return $job->output_dir.'/'.$path;
+    }
+
+    private function download(int $id, $profile): ?string
+    {
+        $dl = \App\Modules\Devices\Models\Download::with('file.item', 'file.episode')->find($id);
+
+        return $dl && $dl->profile_id === $profile->id && $dl->status === 'ready' && $dl->expires_at?->isFuture()
+            && $dl->file && $dl->file->viewableBy($profile) ? $dl->output_path : null;
     }
 
     private function subtitle(int $id, $profile): ?string

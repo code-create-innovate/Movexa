@@ -98,6 +98,15 @@ return [
         'root' => env('CLOUDSYNC_ROOT', '/www/data/cloudsync'), // CloudSync storage root on disk
     ],
 
+    'downloads' => [
+        'ttl_days' => (int) env('MOVEXA_DOWNLOAD_TTL_DAYS', 30),
+    ],
+
+    'discovery' => [
+        'top10_days' => (int) env('MOVEXA_TOP10_DAYS', 30),
+        'recap_after_days' => (int) env('MOVEXA_RECAP_AFTER_DAYS', 14),
+    ],
+
     'limits' => [
         'streams_per_user' => (int) env('MOVEXA_STREAMS_PER_USER', 3),
         'session_ttl' => 90, // seconds without heartbeat
