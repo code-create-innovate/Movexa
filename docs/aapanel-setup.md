@@ -1,0 +1,132 @@
+# دليل إعداد Movexa على Ubuntu 24.04 + aaPanel
+
+> هذا الدليل يتقدم على أي تعليمات عامة. لا تعدّل إعدادات aaPanel الرئيسية يدوياً ولا تثبّت Nginx/PHP/MariaDB خارج الـ Panel.
+
+## 1. الحزم خارج الـ Panel (apt + systemd)
+```bash
+sudo apt update && sudo apt install -y ffmpeg clamav clamav-daemon clamav-freshclam inotify-tools bubblewrap
+```
+تعريفات التسريع العتادي (اختر حسب العتاد):
+```bash
+sudo apt install -y intel-media-va-driver-non-free vainfo   # Intel Quick Sync / VAAPI (Gen 8+)
+sudo apt install -y mesa-va-drivers vainfo                  # AMD VAAPI
+sudo ubuntu-drivers install                                 # NVIDIA (NVENC) ثم أعد التشغيل
+sudo usermod -aG render,video www                           # وصول www إلى /dev/dri
+```
+```bash
+sudo systemctl enable --now clamav-daemon clamav-freshclam   # تحديث التواقيع تلقائياً
+```
+
+## 2. مستخدم الـ sandbox ومجلدات البيانات
+```bash
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin -G www movexa-sandbox
+sudo mkdir -p /www/data/movexa/{inbox/drop/movies,inbox/drop/shows,library,quarantine,cache,images,uploads}
+sudo chown -R www:www /www/data/movexa && sudo chmod -R 2775 /www/data/movexa && sudo chmod 2770 /www/data/movexa/quarantine
+sudo install -m 0755 -o root -g root /www/wwwroot/movexa.lan/deploy/scripts/movexa-sandbox /usr/local/sbin/movexa-sandbox
+echo 'www ALL=(root) NOPASSWD: /usr/local/sbin/movexa-sandbox' | sudo tee /etc/sudoers.d/movexa-sandbox && sudo chmod 440 /etc/sudoers.d/movexa-sandbox
+```
+**قرص منفصل مُركّب بـ noexec** (`/etc/fstab`):
+```
+UUID=<uuid>  /www/data/movexa  ext4  defaults,noexec,nosuid,nodev  0 2
+```
+
+## 3. الموقع وقاعدة البيانات
+- Website → Add site: `movexa.lan`، المجلد `/www/wwwroot/movexa.lan`، PHP 8.3، **Running directory = `/public`**.
+- Databases → Add: قاعدة `movexa` ومستخدم مستقل.
+
+## 4. PHP 8.3
+App Store → PHP 8.3 → Install extensions: `redis`, `fileinfo`, `intl`, `imagick`, `exif`, `opcache`, (`pcntl` لـ CLI).
+
+Disabled functions — أزل من القائمة **فقط**:
+| الدالة | السبب |
+|---|---|
+| `proc_open`, `proc_get_status` | تشغيل ffmpeg/ffprobe عبر Symfony Process، و Composer |
+| `putenv` | Laravel/Composer |
+| `pcntl_signal`, `pcntl_alarm` | مهلة وإيقاف عمال الطوابير (CLI) |
+| `shell_exec` | بدء عملية ffmpeg للبث المباشر بشكل منفصل (setsid) |
+| `posix_kill` (إن وُجدت) | إيقاف عمليات البث المباشر |
+
+Configuration: `upload_max_filesize = 16M` و `post_max_size = 16M` (حجم الجزء 8MB، لا حجم الفيلم)، `max_execution_time = 120`.
+
+**open_basedir**: Website → movexa.lan → Site directory → عدّل `.user.ini` (أو "Anti-XSS" off فقط لهذا الموقع) إلى:
+```
+open_basedir=/www/wwwroot/movexa.lan/:/www/data/movexa/:/www/data/cloudsync/:/tmp/:/usr/bin/ffmpeg:/usr/bin/ffprobe:/var/run/clamav/
+```
+
+## 5. Nginx
+**Site → URL rewrite** (الصق):
+```nginx
+location / { try_files $uri $uri/ /index.php?$query_string; }
+```
+**Site → Config file** — داخل كتلة `server` الخاصة بالموقع (قبل `include enable-php-83.conf;`):
+```nginx
+client_max_body_size 16m;
+add_header X-Content-Type-Options nosniff always;
+
+# ملفات محمية: لا تُقدّم إلا عبر X-Accel-Redirect بعد تحقق Laravel (جلسة + توكن + PIN/عمر)
+location /_protected/ {
+    internal;
+    alias /www/data/movexa/;
+    types { video/mp4 mp4 m4v; video/iso.segment m4s; application/vnd.apple.mpegurl m3u8; video/mp2t ts; text/vtt vtt; image/webp webp; image/jpeg jpg; video/x-matroska mkv; video/webm webm; }
+    default_type application/octet-stream;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Cache-Control "private" always;
+    sendfile on; tcp_nopush on; aio threads;
+}
+location /_cloudsync/ {               # ملفات CloudSync المربوطة دون نسخ
+    internal;
+    alias /www/data/cloudsync/;
+    add_header X-Content-Type-Options nosniff always;
+}
+# منع أي وصول مباشر لمسارات البيانات أو الملفات المخفية
+location ~ /\.(?!well-known) { deny all; }
+
+# Reverb (WebSocket)
+location ~ ^/(app|apps)/ {
+    proxy_http_version 1.1;
+    proxy_set_header Host $http_host;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 3600s;
+    proxy_pass http://127.0.0.1:8080;
+}
+```
+> بديل `auth_request` غير مطلوب: كل مقطع HLS يمر بـ `/m/{token}/…` في Laravel ثم يُسلَّم لـ Nginx داخلياً، ويدعم Range requests.
+
+## 6. SSL والدومين الداخلي
+```bash
+mkcert -install && mkcert movexa.lan     # على جهاز الإدارة؛ ثبّت rootCA.pem على كل جهاز عائلي
+```
+Site → SSL → Other certificate: الصق `movexa.lan.pem` و`movexa.lan-key.pem`. (أو `tailscale cert`).
+DNS: في Pi-hole/AdGuard Home → Local DNS: `movexa.lan → <IP السيرفر>` (أو DHCP/DNS في الراوتر).
+
+## 7. Supervisor Manager (App Store)
+| الاسم | الأمر | المستخدم | العدد |
+|---|---|---|---|
+| movexa-queue | `/www/server/php/83/bin/php /www/wwwroot/movexa.lan/artisan queue:work redis --queue=default --sleep=3 --tries=3 --max-time=3600` | www | 1 |
+| movexa-scan | `/www/server/php/83/bin/php /www/wwwroot/movexa.lan/artisan queue:work redis --queue=scan --timeout=21600 --tries=1` | www | 1 |
+| movexa-transcode | `/www/server/php/83/bin/php /www/wwwroot/movexa.lan/artisan queue:work redis --queue=transcode --timeout=21600 --tries=1` | www | = `MOVEXA_MAX_TRANSCODES` |
+| movexa-reverb | `/www/server/php/83/bin/php /www/wwwroot/movexa.lan/artisan reverb:start --host=127.0.0.1 --port=8080` | www | 1 |
+| movexa-watch | `/www/server/php/83/bin/php /www/wwwroot/movexa.lan/artisan movexa:watch` | www | 1 |
+| movexa-live | `/www/server/php/83/bin/php /www/wwwroot/movexa.lan/artisan movexa:live-reaper --loop` | www | 1 |
+
+## 8. Cron (قسم Cron)
+- كل دقيقة (Shell): `cd /www/wwwroot/movexa.lan && /www/server/php/83/bin/php artisan schedule:run >> /dev/null 2>&1`
+- يومياً 03:20: `/www/wwwroot/movexa.lan/deploy/scripts/backup.sh` (نسخ aaPanel الافتراضي لا يشمل `/www/data/movexa`).
+
+## 9. الجدار الناري (Security)
+- افتح 443 (و80 للتحويل) **مقيّدة بالمصدر**: `192.168.0.0/16` و`100.64.0.0/10` (Tailscale). لا تفتح 8080 (Reverb خلف Nginx فقط)، ولا 3306/6379.
+- **منفذ لوحة aaPanel**: قيّده بالشبكة المحلية/VPN، فعّل Security entrance والمصادقة الثنائية للوحة.
+- `.env` خارج `public` دائماً.
+
+## 10. التثبيت
+```bash
+cd /www/wwwroot/movexa.lan && git clone https://github.com/code-create-innovate/Movexa.git . 
+cp .env.example .env && /www/server/php/83/bin/php artisan key:generate && /www/server/php/83/bin/php artisan reverb:install
+deploy/scripts/deploy.sh
+/www/server/php/83/bin/php artisan movexa:create-admin admin@movexa.lan --emergency
+/www/server/php/83/bin/php artisan movexa:token homecore homecore:read      # ضعه في HomeCore
+/www/server/php/83/bin/php artisan movexa:token cloudsync cloudsync:ingest  # ضعه في CloudSync
+```

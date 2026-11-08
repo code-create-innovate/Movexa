@@ -1,0 +1,23 @@
+#!/bin/bash
+# /usr/local/sbin/movexa-sandbox  (root:root 0755)
+# sudoers: www ALL=(root) NOPASSWD: /usr/local/sbin/movexa-sandbox
+# Runs ffmpeg/ffprobe as the unprivileged "movexa-sandbox" user inside a transient systemd unit:
+# no network, read-only system, only the given data dirs writable, memory/CPU/time limits.
+set -euo pipefail
+DATA_ROOT="${MOVEXA_DATA_ROOT:-/www/data/movexa}"
+TIMEOUT=3600; RW=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --timeout) TIMEOUT="$2"; shift 2;;
+    --rw) real=$(realpath -e "$2"); [[ "$real" == "$DATA_ROOT"/* ]] || { echo "rw path outside data root" >&2; exit 64; }; RW+=("-p" "ReadWritePaths=$real"); shift 2;;
+    --) shift; break;;
+    *) echo "bad arg $1" >&2; exit 64;;
+  esac
+done
+case "$(basename "$1")" in ffmpeg|ffprobe) ;; *) echo "binary not allowed" >&2; exit 64;; esac
+exec systemd-run --quiet --wait --pipe --collect --uid=movexa-sandbox --gid=www \
+  -p PrivateNetwork=yes -p ProtectSystem=strict -p ProtectHome=yes -p PrivateTmp=yes \
+  -p NoNewPrivileges=yes -p ProtectKernelTunables=yes -p ProtectKernelModules=yes -p ProtectControlGroups=yes \
+  -p RestrictNamespaces=yes -p LockPersonality=yes -p RestrictSUIDSGID=yes -p CapabilityBoundingSet= \
+  -p SystemCallFilter=@system-service -p MemoryMax="${MOVEXA_SANDBOX_MEMORY:-4G}" -p CPUQuota="${MOVEXA_SANDBOX_CPU:-300%}" \
+  -p RuntimeMaxSec="$TIMEOUT" -p DeviceAllow=/dev/dri rw -p ReadOnlyPaths="$DATA_ROOT" "${RW[@]}" -- "$@"
