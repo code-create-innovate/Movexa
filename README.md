@@ -34,7 +34,11 @@ git clone https://github.com/code-create-innovate/Movexa.git /root/movexa
 ```bash
 sudo bash /root/movexa/deploy/install.sh
 ```
-السكربت يضبط كل شيء: الحزم (ffmpeg، ClamAV، تعريفات GPU)، إعدادات PHP 8.5، مجلدات البيانات (noexec)، الـ sandbox، شهادة HTTPS من CA محلية، nginx على **8088 فقط**، قاعدة البيانات، Redis، بناء التطبيق، الخدمات الخلفية (systemd)، الـ Cron، الجدار الناري للشبكة المحلية، وحساب المسؤول. في النهاية يطبع الرابط وكلمة مرور المسؤول (ومحفوظة في `/root/movexa-install-summary.txt`). يمكن تشغيله مرة ثانية بأمان.
+السكربت يجد الموقع تلقائياً (من قاعدة مواقع aaPanel أو إعدادات nginx أو `/www/wwwroot`)، وإن وجد أكثر من موقع يسألك أيّها Movexa. ويمكن تحديده صراحة:
+```bash
+sudo bash /root/movexa/deploy/install.sh --site /www/wwwroot/movexa.lan --domain movexa.lan
+```
+يعمل على Ubuntu 24.04 و26.04. السكربت يضبط كل شيء: الحزم (ffmpeg، ClamAV، تعريفات GPU)، إعدادات PHP 8.5، مجلدات البيانات (noexec)، الـ sandbox، شهادة HTTPS من CA محلية، nginx على **8088 فقط**، قاعدة البيانات، Redis، بناء التطبيق، الخدمات الخلفية (systemd)، الـ Cron، الجدار الناري للشبكة المحلية، وحساب المسؤول. في النهاية يطبع الرابط وكلمة مرور المسؤول (ومحفوظة في `/root/movexa-install-summary.txt`). يمكن تشغيله مرة ثانية بأمان.
 
 بعده: وجّه `movexa.lan` إلى IP السيرفر في الراوتر أو Pi-hole، وثبّت `/root/movexa-rootCA.crt` على الأجهزة. للتحديث لاحقاً: `sudo bash /www/wwwroot/movexa.lan/deploy/deploy.sh`.
 

@@ -1,12 +1,13 @@
 #!/bin/bash
 # =====================================================================================================
-#  Movexa — one-shot installer for Ubuntu 24.04 + aaPanel
+#  Movexa — one-shot installer for Ubuntu 24.04+ (24.04 / 26.04) + aaPanel
 #
 #  The ONLY manual step before running it:
 #     aaPanel → Website → Add site → domain "movexa.lan", PHP 8.5   (nothing else: no SSL, no DB, no rewrite)
 #
 #  Then, as root, from a checkout of this repository:
-#     sudo bash deploy/install.sh
+#     sudo bash deploy/install.sh                      (finds the site automatically)
+#     sudo bash deploy/install.sh --site /www/wwwroot/movexa.lan --domain movexa.lan   (explicit)
 #
 #  Everything else is configured here: system packages (ffmpeg, ClamAV, …), PHP settings, the data
 #  folders (noexec), the ffmpeg sandbox, a local CA + HTTPS certificate, nginx on port 8088 only, MariaDB
@@ -21,29 +22,50 @@
 # =====================================================================================================
 set -Eeuo pipefail
 
-DOMAIN=${DOMAIN:-movexa.lan}
+# Log everything to /var/log/movexa-install.log. Re-exec through a pipe (not `exec > >(tee)`): this guarantees
+# every message — including the final error — is printed before the prompt comes back.
+LOG=/var/log/movexa-install.log
+if [ -z "${MOVEXA_LOGGED:-}" ]; then
+    mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
+    MOVEXA_LOGGED=1 bash "$(readlink -f "$0")" "$@" 2>&1 | tee -a "$LOG"
+    exit "${PIPESTATUS[0]}"
+fi
+
+usage() {
+    cat <<'U'
+Usage: sudo bash deploy/install.sh [--site /www/wwwroot/NAME] [--domain movexa.lan] [--port 8088] [--php 85]
+  --site    folder of the website you added in aaPanel (auto-detected if omitted)
+  --domain  local domain name (default: the site's name, or movexa.lan)
+U
+}
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --site) SITE_DIR=${2%/}; shift 2 ;;
+        --domain) DOMAIN=$2; shift 2 ;;
+        --port) PORT=$2; shift 2 ;;
+        --php) PHP_VER=${2/./}; shift 2 ;;
+        -h|--help) usage; exit 0 ;;
+        *) echo "unknown option: $1"; usage; exit 2 ;;
+    esac
+done
+
 PORT=${PORT:-8088}
 PHP_VER=${PHP_VER:-85}
 DATA_DIR=${DATA_DIR:-/www/data/movexa}
-SITE_DIR=${SITE_DIR:-/www/wwwroot/$DOMAIN}
 ADMIN_USER=${ADMIN_USER:-admin}
 LAN_CIDRS=${LAN_CIDRS:-"192.168.0.0/16 10.0.0.0/8 172.16.0.0/12 100.64.0.0/10"}
 TRANSCODE_WORKERS=${TRANSCODE_WORKERS:-2}
 PANEL=${PANEL:-/www/server/panel}
+WWWROOT=${WWWROOT:-/www/wwwroot}
 PHP_DIR=${PHP_DIR:-/www/server/php/$PHP_VER}
 NGINX_BIN=${NGINX_BIN:-/www/server/nginx/sbin/nginx}
-VHOST=${VHOST:-$PANEL/vhost/nginx/$DOMAIN.conf}
-CERT_DIR=${CERT_DIR:-$PANEL/vhost/cert/$DOMAIN}
 CA_DIR=${CA_DIR:-/root/movexa-ca}
-SRC=${SRC:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}
+SRC=${SRC:-$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)}
 # Test mode (tests/install/run.sh): skips apt, systemd, mounts, firewall and ClamAV — things a container can't do.
 TEST_MODE=${MOVEXA_INSTALL_TEST:-0}
-LOG=/var/log/movexa-install.log
 SUMMARY=/root/movexa-install-summary.txt
-
 PHP="$PHP_DIR/bin/php"
-mkdir -p "$(dirname "$LOG")"
-exec > >(tee -a "$LOG") 2>&1
+
 c_ok() { printf '\e[32m✓\e[0m %s\n' "$*"; }
 c_step() { printf '\n\e[1;34m▶ %s\e[0m\n' "$*"; }
 c_warn() { printf '\e[33m! %s\e[0m\n' "$*"; WARNINGS+=("$*"); }
@@ -53,20 +75,90 @@ trap 'die "failed at line $LINENO: $BASH_COMMAND (see $LOG)"' ERR
 rand() { local s; s=$(openssl rand -base64 96 | tr -dc 'A-Za-z0-9'); echo "${s:0:${1:-24}}"; }  # no SIGPIPE under pipefail
 have_systemd() { [ "$TEST_MODE" != 1 ] && [ -d /run/systemd/system ]; }
 
+# Lists the websites aaPanel knows as "name|path" lines: its site database first, then the nginx vhosts, then /www/wwwroot.
+list_sites() ( # subshell: a non-matching grep here must never trip the error trap
+    set +eE +o pipefail; trap - ERR
+    {
+        for db in "$PANEL/data/db/site.db" "$PANEL/data/default.db"; do
+            [ -f "$db" ] && python3 - "$db" <<'PYDB' 2>/dev/null
+import sqlite3, sys
+try:
+    for name, path in sqlite3.connect(sys.argv[1]).execute("select name, path from sites"):
+        print(f"{name}|{path}")
+except Exception:
+    pass
+PYDB
+        done
+        for f in "$PANEL"/vhost/nginx/*.conf; do
+            [ -f "$f" ] || continue
+            root=$(grep -oE '(^|[[:space:];{])root[[:space:]]+[^;[:space:]]+' "$f" | head -1 | awk '{print $NF}')
+            [ -n "$root" ] && echo "$(basename "$f" .conf)|${root%/public}"
+        done
+        for d in "$WWWROOT"/*/; do
+            [ -d "$d" ] && [ "$(basename "$d")" != default ] && echo "$(basename "$d")|${d%/}"
+        done
+    } | awk -F'|' '$2 != "" && !seen[$2]++'
+)
+
 # -----------------------------------------------------------------------------------------------------
 c_step "1/16 Checks"
 [ "$(id -u)" = 0 ] || die "run as root: sudo bash deploy/install.sh"
-grep -q 'VERSION_ID="24.04"' /etc/os-release 2>/dev/null || c_warn "tested on Ubuntu 24.04 — this system is $(. /etc/os-release; echo "$PRETTY_NAME")"
+. /etc/os-release 2>/dev/null || true
+if [ "${ID:-}" != ubuntu ] || [ "$(printf '%s\n24.04\n' "${VERSION_ID:-0}" | sort -V | head -1)" != "24.04" ]; then
+    c_warn "made for Ubuntu 24.04 or newer — this system is ${PRETTY_NAME:-unknown}"
+elif [ "${VERSION_ID:-}" != "24.04" ]; then
+    c_ok "${PRETTY_NAME} (newer than the tested 24.04 — fine)"
+fi
 [ -d "$PANEL" ] || die "aaPanel not found ($PANEL). Install aaPanel first."
-[ -d "$SITE_DIR" ] || die "website not found: $SITE_DIR — in aaPanel: Website → Add site → $DOMAIN (PHP ${PHP_VER:0:1}.${PHP_VER:1})"
-[ -f "$VHOST" ] || die "nginx vhost not found: $VHOST (was the site added in aaPanel with nginx?)"
+
+# Find the website that was added in aaPanel.
+if [ -z "${SITE_DIR:-}" ] || [ ! -d "$SITE_DIR" ]; then
+    [ -n "${SITE_DIR:-}" ] && c_warn "folder $SITE_DIR does not exist — looking for the site in aaPanel"
+    mapfile -t SITES < <(list_sites)
+    want=${DOMAIN:-movexa.lan}
+    pick=""
+    for row in "${SITES[@]}"; do  # exact name / folder name
+        n=${row%%|*}; d=${row#*|}
+        if [ "${n,,}" = "${want,,}" ] || [ "$(basename "$d")" = "$want" ]; then pick=$row; break; fi
+    done
+    if [ -z "$pick" ]; then        # anything called *movexa*
+        for row in "${SITES[@]}"; do [[ "${row,,}" == *movexa* ]] && { pick=$row; break; }; done
+    fi
+    if [ -z "$pick" ] && [ ${#SITES[@]} = 1 ]; then pick=${SITES[0]}; fi
+    if [ -z "$pick" ] && [ ${#SITES[@]} -gt 1 ] && [ -r /dev/tty ]; then
+        echo "Websites found in aaPanel:"
+        i=1; for row in "${SITES[@]}"; do printf '  %d) %s   (%s)\n' $i "${row%%|*}" "${row#*|}"; i=$((i+1)); done
+        read -r -p "Which one is Movexa? [1-${#SITES[@]}] " n </dev/tty
+        [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -ge 1 ] && [ "$n" -le ${#SITES[@]} ] && pick=${SITES[$((n-1))]}
+    fi
+    if [ -z "$pick" ]; then
+        echo "Websites found: ${SITES[*]:-none}"
+        echo "Contents of $WWWROOT: $(ls -1 "$WWWROOT" 2>/dev/null | tr '\n' ' ')"
+        die "no website found for Movexa — add it in aaPanel (Website → Add site → movexa.lan, PHP ${PHP_VER:0:1}.${PHP_VER:1}), or run: sudo bash deploy/install.sh --site $WWWROOT/<name>"
+    fi
+    SITE_NAME=${pick%%|*}; SITE_DIR=${pick#*|}
+    [ -d "$SITE_DIR" ] || die "aaPanel lists site $SITE_NAME at $SITE_DIR, but that folder does not exist"
+fi
+SITE_NAME=${SITE_NAME:-$(basename "$SITE_DIR")}
+# Domain: --domain, else the site's name if it is a hostname, else movexa.lan
+if [ -z "${DOMAIN:-}" ]; then
+    if [[ "$SITE_NAME" == *.* ]] && ! [[ "$SITE_NAME" =~ ^[0-9.]+$ ]]; then DOMAIN=${SITE_NAME%%:*}; else DOMAIN=movexa.lan; fi
+fi
+VHOST=${VHOST:-$PANEL/vhost/nginx/$SITE_NAME.conf}
+if [ ! -f "$VHOST" ]; then
+    VHOST=$(grep -l -E "root[[:space:]]+$SITE_DIR(/public)?;" "$PANEL"/vhost/nginx/*.conf 2>/dev/null | head -1 || true)
+fi
+[ -n "$VHOST" ] && [ -f "$VHOST" ] || die "nginx config of the site not found in $PANEL/vhost/nginx/ — was the site created with nginx (not Apache/OpenLiteSpeed)?"
+CERT_DIR=${CERT_DIR:-$PANEL/vhost/cert/$SITE_NAME}
+c_ok "website: $SITE_NAME → $SITE_DIR (nginx: $VHOST), domain: $DOMAIN"
+
 if [ ! -x "$PHP" ]; then
     c_warn "PHP ${PHP_VER:0:1}.${PHP_VER:1} not found in aaPanel — trying the aaPanel installer"
     [ -f "$PANEL/install/install_soft.sh" ] && bash "$PANEL/install/install_soft.sh" 0 install php "${PHP_VER:0:1}.${PHP_VER:1}" || true
     [ -x "$PHP" ] || die "install PHP ${PHP_VER:0:1}.${PHP_VER:1} from aaPanel → App Store, then run this script again"
 fi
 "$PHP" -r 'exit(version_compare(PHP_VERSION, "8.3.0", ">=") ? 0 : 1);' || die "PHP >= 8.3 required"
-c_ok "aaPanel, site $SITE_DIR, PHP $("$PHP" -r 'echo PHP_VERSION;')"
+c_ok "aaPanel, PHP $("$PHP" -r 'echo PHP_VERSION;')"
 if ss -ltnH "sport = :$PORT" 2>/dev/null | grep -q . && ! grep -q "listen $PORT" "$VHOST"; then
     die "port $PORT is already used by another service: $(ss -ltnpH "sport = :$PORT" | head -1)"
 fi
@@ -76,16 +168,21 @@ c_ok "port $PORT available"
 c_step "2/16 System packages (apt)"
 if [ "$TEST_MODE" != 1 ]; then
     export DEBIAN_FRONTEND=noninteractive
-    apt-get update -q
-    apt-get install -y -q ffmpeg clamav clamav-daemon clamav-freshclam inotify-tools bubblewrap mkcert libnss3-tools \
-        git unzip curl rsync acl sqlite3 pciutils ca-certificates sudo
-    # Hardware video acceleration drivers (if a GPU is present)
-    if lspci 2>/dev/null | grep -qi 'vga.*intel'; then apt-get install -y -q intel-media-va-driver-non-free vainfo || apt-get install -y -q intel-media-va-driver vainfo || true; fi
-    if lspci 2>/dev/null | grep -qi 'vga.*\(amd\|ati\)'; then apt-get install -y -q mesa-va-drivers vainfo || true; fi
+    apt-get update -q || c_warn "apt-get update reported errors (continuing)"
+    REQUIRED="ffmpeg curl rsync openssl python3 git unzip ca-certificates sudo"
+    OPTIONAL="clamav clamav-daemon clamav-freshclam inotify-tools bubblewrap acl sqlite3 pciutils"
+    # fast path: everything at once; if a package name doesn't exist on this release, fall back to one by one
+    if ! apt-get install -y -q $REQUIRED $OPTIONAL; then
+        for p in $REQUIRED; do apt-get install -y -q "$p" || die "required package $p could not be installed"; done
+        for p in $OPTIONAL; do apt-get install -y -q "$p" || c_warn "optional package $p not available on this Ubuntu release"; done
+    fi
+    # Hardware video acceleration drivers (if a GPU is present) — optional
+    if lspci 2>/dev/null | grep -qi 'vga.*intel'; then apt-get install -y -q intel-media-va-driver-non-free vainfo || apt-get install -y -q intel-media-va-driver vainfo || c_warn "Intel VAAPI driver not installed (CPU transcoding still works)"; fi
+    if lspci 2>/dev/null | grep -qi 'vga.*\(amd\|ati\)'; then apt-get install -y -q mesa-va-drivers vainfo || c_warn "AMD VAAPI driver not installed"; fi
     if lspci 2>/dev/null | grep -qi 'nvidia'; then command -v nvidia-smi >/dev/null || c_warn "NVIDIA GPU found: install the driver (ubuntu-drivers install) and reboot to enable NVENC"; fi
 fi
-for b in ffmpeg ffprobe mkcert rsync curl; do command -v $b >/dev/null || die "missing $b"; done
-c_ok "ffmpeg $(ffmpeg -version | head -1 | awk '{print $3}'), mkcert, tools"
+for b in ffmpeg ffprobe openssl rsync curl python3; do command -v $b >/dev/null || die "missing $b"; done
+c_ok "ffmpeg $(ffmpeg -version | head -1 | awk '{print $3}'), tools"
 
 # -----------------------------------------------------------------------------------------------------
 c_step "3/16 PHP ${PHP_VER:0:1}.${PHP_VER:1} settings"
@@ -152,14 +249,26 @@ fi
 
 # -----------------------------------------------------------------------------------------------------
 c_step "7/16 Local CA + HTTPS certificate for $DOMAIN"
-mkdir -p "$CA_DIR" "$CERT_DIR"
-export CAROOT="$CA_DIR"
-[ -f "$CA_DIR/rootCA.pem" ] || mkcert -install >/dev/null 2>&1 || true
-[ -f "$CA_DIR/rootCA.pem" ] || die "mkcert could not create the CA"
-if [ ! -f "$CERT_DIR/fullchain.pem" ] || ! openssl x509 -in "$CERT_DIR/fullchain.pem" -noout -checkend 2592000 >/dev/null; then
-    LANIP=$(hostname -I 2>/dev/null | awk '{print $1}')
-    mkcert -cert-file "$CERT_DIR/fullchain.pem" -key-file "$CERT_DIR/privkey.pem" "$DOMAIN" ${LANIP:+"$LANIP"} localhost 127.0.0.1 >/dev/null 2>&1
+mkdir -p "$CA_DIR" "$CERT_DIR"; chmod 700 "$CA_DIR"
+# Local certificate authority (10 years). Kept in $CA_DIR — never served; only rootCA.pem is copied for devices.
+if [ ! -f "$CA_DIR/rootCA.pem" ]; then
+    openssl req -x509 -newkey rsa:3072 -nodes -sha256 -days 3650 -subj "/O=Movexa/CN=Movexa Local CA ($(hostname -s))" \
+        -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign" \
+        -keyout "$CA_DIR/rootCA-key.pem" -out "$CA_DIR/rootCA.pem" 2>/dev/null
+    chmod 600 "$CA_DIR/rootCA-key.pem"
 fi
+# Server certificate: 825 days max (iPhone/macOS limit), SAN = domain + this server's LAN address.
+if [ ! -f "$CERT_DIR/fullchain.pem" ] || ! openssl x509 -in "$CERT_DIR/fullchain.pem" -noout -checkend 2592000 >/dev/null 2>&1 \
+   || ! openssl x509 -in "$CERT_DIR/fullchain.pem" -noout -text 2>/dev/null | grep -q "DNS:$DOMAIN"; then
+    LANIP=$(hostname -I 2>/dev/null | awk '{print $1}')
+    SAN="DNS:$DOMAIN,DNS:localhost,IP:127.0.0.1${LANIP:+,IP:$LANIP}"
+    printf 'basicConstraints=CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\nsubjectAltName=%s\n' "$SAN" > "$CA_DIR/leaf.ext"
+    openssl req -newkey rsa:2048 -nodes -sha256 -subj "/O=Movexa/CN=$DOMAIN" -keyout "$CERT_DIR/privkey.pem" -out "$CA_DIR/leaf.csr" 2>/dev/null
+    openssl x509 -req -sha256 -days 825 -in "$CA_DIR/leaf.csr" -CA "$CA_DIR/rootCA.pem" -CAkey "$CA_DIR/rootCA-key.pem" -CAcreateserial \
+        -extfile "$CA_DIR/leaf.ext" -out "$CERT_DIR/fullchain.pem" 2>/dev/null
+    chmod 600 "$CERT_DIR/privkey.pem"
+fi
+openssl verify -CAfile "$CA_DIR/rootCA.pem" "$CERT_DIR/fullchain.pem" >/dev/null || die "generated certificate does not verify"
 # PHP (Reverb publishing via https://$DOMAIN:$PORT) and curl must trust the local CA:
 cp "$CA_DIR/rootCA.pem" /usr/local/share/ca-certificates/movexa-local-ca.crt
 update-ca-certificates >/dev/null 2>&1 || true

@@ -11,10 +11,33 @@ ko() { echo "✗ $1"; FAIL=$((FAIL+1)); }
 export NO_PROXY="movexa.lan,127.0.0.1,localhost${NO_PROXY:+,$NO_PROXY}" no_proxy="$NO_PROXY"
 
 # ---------- prerequisites the real script would apt-install ----------
-DEBIAN_FRONTEND=noninteractive apt-get install -y -q mkcert sqlite3 rsync libnss3-tools >/dev/null 2>&1 || true
+DEBIAN_FRONTEND=noninteractive apt-get install -y -q sqlite3 rsync >/dev/null 2>&1 || true
 pgrep -x mariadbd >/dev/null || (mysqld_safe --user=root >/dev/null 2>&1 &) ; sleep 4
 redis-cli ping >/dev/null 2>&1 || redis-server --daemonize yes >/dev/null
 pkill -f "nginx: master" 2>/dev/null; sleep 0.5
+
+# ---------- site auto-detection (isolated fake panels; stops at the PHP check on purpose: PHP_VER=99) ----------
+detect() { # $1 = panel root, rest = extra args → prints the installer output
+    MOVEXA_INSTALL_TEST=1 PANEL=$1/panel WWWROOT=$1/wwwroot PHP_VER=99 bash "$REPO/deploy/install.sh" "${@:2}" 2>&1 | sed 's/\x1b\[[0-9;]*m//g'
+}
+mkpanel() { rm -rf "$1"; mkdir -p "$1/panel/data" "$1/panel/vhost/nginx" "$1/wwwroot"; }
+D=/tmp/movexa-detect
+# a) site added in aaPanel under another name, only known from aaPanel's site database
+mkpanel $D/a; mkdir -p $D/a/wwwroot/movexa.home
+python3 -c "import sqlite3; c=sqlite3.connect('$D/a/panel/data/default.db'); c.execute('create table sites(id integer primary key, name text, path text)'); c.execute(\"insert into sites(name,path) values('movexa.home','$D/a/wwwroot/movexa.home')\"); c.commit()"
+echo "server { listen 80; server_name movexa.home; root $D/a/wwwroot/movexa.home; }" > $D/a/panel/vhost/nginx/movexa.home.conf
+O=$(detect $D/a); echo "$O" | grep -q "website: movexa.home → $D/a/wwwroot/movexa.home" && echo "$O" | grep -q "domain: movexa.home" && ok "detects the site from aaPanel's site database (other name → domain movexa.home)" || { ko "detect a"; echo "$O" | tail -5; }
+# b) folder called "Movexa", vhost with root …/public
+mkpanel $D/b; mkdir -p $D/b/wwwroot/Movexa
+echo "server { listen 80; server_name 192.168.1.50; root $D/b/wwwroot/Movexa/public; }" > $D/b/panel/vhost/nginx/Movexa.conf
+O=$(detect $D/b); echo "$O" | grep -q "website: Movexa → $D/b/wwwroot/Movexa" && echo "$O" | grep -q "domain: movexa.lan" && ok "detects a site named \"Movexa\" (no domain in the name → movexa.lan)" || { ko "detect b"; echo "$O" | tail -5; }
+# c) explicit --site / --domain
+O=$(detect $D/b --site $D/b/wwwroot/Movexa/ --domain films.lan); echo "$O" | grep -q "website: Movexa → $D/b/wwwroot/Movexa" && echo "$O" | grep -q "domain: films.lan" && ok "--site / --domain options" || { ko "detect c"; echo "$O" | tail -5; }
+# d) no site at all → a clear error that is actually printed (exit code 1)
+mkpanel $D/d
+O=$(detect $D/d); RC=$?
+echo "$O" | grep -q "✗ no website found for Movexa" && echo "$O" | grep -q -- "--site" && ok "no site → clear error printed (with --site hint)" || { ko "detect d"; echo "$O" | tail -5; }
+rm -rf $D
 
 # ---------- fake aaPanel ----------
 rm -rf /www /root/movexa-ca /root/movexa-install-summary.txt
@@ -106,6 +129,9 @@ miss=0; for u in movexa-queue movexa-scan movexa-reverb movexa-watch movexa-live
 grep -q 'schedule:run' /etc/cron.d/movexa && grep -q 'backup.sh' /etc/cron.d/movexa && ok "cron: scheduler every minute + nightly backup" || ko "cron"
 [ -x /usr/local/sbin/movexa-sandbox ] && [ -f /etc/sudoers.d/movexa-sandbox ] && id movexa-sandbox >/dev/null && ok "sandbox wrapper + user + sudoers" || ko "sandbox"
 grep -q "movexa.lan" /etc/hosts && ok "server resolves movexa.lan" || ko "hosts"
+CRT=/www/server/panel/vhost/cert/movexa.lan/fullchain.pem
+DAYS=$(( ( $(date -d "$(openssl x509 -in $CRT -noout -enddate | cut -d= -f2)" +%s) - $(date +%s) ) / 86400 ))
+openssl x509 -in $CRT -noout -text | grep -q "DNS:movexa.lan" && [ "$DAYS" -le 825 ] && openssl verify -CAfile $CA $CRT >/dev/null && ok "certificate: signed by the local CA, SAN movexa.lan, $DAYS days (≤ 825 for iPhone)" || ko "certificate"
 # Sign in as the admin created by the installer (username, not email)
 J=$(mktemp); $C -c $J -b $J -o /dev/null https://movexa.lan:8088/login
 X=$(grep XSRF-TOKEN $J | awk '{print $7}' | python3 -c 'import sys,urllib.parse;print(urllib.parse.unquote(sys.stdin.read().strip()))')
