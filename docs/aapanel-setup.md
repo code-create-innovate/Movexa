@@ -8,6 +8,9 @@
 - يعدّل `php.ini` و`php-cli.ini` لـ PHP 8.5 (نسخة احتياطية `*.movexa.bak`)، ويستبدل ملف Config الخاص بالموقع (نسخة `movexa.lan.conf.movexa.bak`).
 - الخدمات الخلفية تعمل عبر **systemd** (`systemctl status 'movexa-*'`) بدل Supervisor Manager، والـ Cron في `/etc/cron.d/movexa` — لذلك لا تظهر في صفحات Supervisor/Cron في الـ Panel.
 - قاعدة البيانات تُنشأ مباشرة في MariaDB (بكلمة مرور root المحفوظة في aaPanel)؛ لعرضها في الـ Panel: Databases ← "Get DB from server".
+  - السكربت يقرأ كلمة مرور root من aaPanel تلقائياً (القديم والجديد) ويجرب `/tmp/mysql.sock` ثم المنافذ العادية؛ لو MySQL/MariaDB غير مثبتة يثبت MariaDB.
+  - لو ما قدر يدخل يسألك على كلمة المرور، أو شغّله هكذا (aaPanel ← Databases ← Root password):
+    `sudo MYSQL_ROOT_PASSWORD='كلمة_المرور' bash deploy/install.sh`
 - الجدار الناري: يضيف قواعد ufw للشبكة المحلية/VPN إن كان ufw مفعلاً، وإلا يطلب منك إضافة 8088 من قسم Security.
 - إذا أعاد الـ Panel كتابة ملف Config بعد تغيير الشهادة، شغّل السكربت مرة أخرى.
 

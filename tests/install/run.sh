@@ -100,6 +100,17 @@ id www >/dev/null 2>&1 || useradd --system --no-create-home www
 /etc/init.d/php-fpm-85 start
 /www/server/nginx/sbin/nginx
 
+# aaPanel-style MySQL: root needs a password (no socket login), socket at /tmp/mysql.sock, and the password is only
+# stored in the panel's newer database layout (data/db/*.db), not data/default.db
+DBPW='Pan3l-r00t-pw'
+mysql -uroot -e "ALTER USER root@localhost IDENTIFIED VIA mysql_native_password USING PASSWORD('$DBPW')" 2>/dev/null || true
+ln -sf /run/mysqld/mysqld.sock /tmp/mysql.sock
+mkdir -p /www/server/panel/data/db
+python3 -c "import sqlite3; c=sqlite3.connect('/www/server/panel/data/db/config.db'); c.execute('create table if not exists config(id integer primary key, mysql_root text)'); c.execute(\"insert or replace into config(id,mysql_root) values(1,'$DBPW')\"); c.commit()"
+mysql -uroot -e 'select 1' >/dev/null 2>&1 && ko "root still logs in without a password (simulation failed)" || ok "simulated aaPanel MySQL: root is password-protected"
+restore_db() { MYSQL_PWD=$DBPW mysql -uroot -e "ALTER USER root@localhost IDENTIFIED VIA unix_socket" 2>/dev/null; rm -f /tmp/mysql.sock /www/server/panel/data/db/config.db; }
+trap restore_db EXIT
+
 # ---------- run the installer (twice) ----------
 export MOVEXA_INSTALL_TEST=1 ADMIN_PASS=AdminPass-12345 REBUILD_FRONTEND=${REBUILD_FRONTEND:-1}
 if bash "$REPO/deploy/install.sh" > /tmp/install-run1.log 2>&1; then ok "install.sh run 1 completed"; else ko "install.sh run 1 failed"; tail -25 /tmp/install-run1.log; fi
@@ -108,6 +119,12 @@ REBUILD_FRONTEND=0 bash "$REPO/deploy/install.sh" > /tmp/install-run2.log 2>&1 &
 [ -n "$ENV1" ] && [ "$ENV1" = "$(sha256sum /www/wwwroot/movexa.lan/.env | cut -d' ' -f1)" ] && ok ".env (secrets) unchanged by re-run" || ko ".env changed on re-run"
 
 # ---------- checks ----------
+grep -q "connected to the database server as root via -S/tmp/mysql.sock" /tmp/install-run1.log && ok "root password read from aaPanel (data/db) and used over /tmp/mysql.sock" || { ko "db connect"; grep -i -A2 "9/16" /tmp/install-run1.log; }
+# wrong password and nothing to read it from → clear error with the exact command to run
+mv /www/server/panel/data/db/config.db /tmp/config.db.hidden
+O=$(MOVEXA_INSTALL_TEST=1 MYSQL_ROOT_PASSWORD=wrong REBUILD_FRONTEND=0 setsid bash "$REPO/deploy/install.sh" </dev/null 2>&1 | sed 's/\x1b\[[0-9;]*m//g')
+mv /tmp/config.db.hidden /www/server/panel/data/db/config.db
+echo "$O" | grep -q "cannot connect to MariaDB as root" && echo "$O" | grep -q "sudo MYSQL_ROOT_PASSWORD=" && ok "no usable root password → clear error with the command to run" || { ko "db error"; echo "$O" | tail -4; }
 S=/www/wwwroot/movexa.lan
 CA=/root/movexa-ca/rootCA.pem
 C="curl -s --noproxy movexa.lan --resolve movexa.lan:8088:127.0.0.1 --cacert $CA"

@@ -289,12 +289,69 @@ if [ -f "$ENV_FILE" ] && grep -q '^DB_PASSWORD=.\+' "$ENV_FILE"; then
 else
     DB_PASS=$(rand 28)
 fi
-MYSQL=${MYSQL:-$(command -v mysql || echo /www/server/mysql/bin/mysql)}
-if [ -z "${MYSQL_ROOT_PASSWORD:-}" ] && [ -f "$PANEL/data/default.db" ] && command -v sqlite3 >/dev/null; then
-    MYSQL_ROOT_PASSWORD=$(sqlite3 "$PANEL/data/default.db" "select mysql_root from config where id=1" 2>/dev/null || true)
+MYSQL_ADMIN_USER=${MYSQL_ADMIN_USER:-root}
+# Client: aaPanel's own first, then the system one.
+MYSQL=${MYSQL:-}
+for c in /www/server/mysql/bin/mysql "$(command -v mariadb || true)" "$(command -v mysql || true)"; do
+    [ -z "$MYSQL" ] && [ -n "$c" ] && [ -x "$c" ] && MYSQL=$c
+done
+# Server running? aaPanel uses /tmp/mysql.sock; Ubuntu packages use /run/mysqld/mysqld.sock.
+db_up() { for so in /tmp/mysql.sock /run/mysqld/mysqld.sock /var/run/mysqld/mysqld.sock; do [ -S "$so" ] && return 0; done; ss -ltnH 'sport = :3306' 2>/dev/null | grep -q .; }
+if ! db_up || [ -z "$MYSQL" ]; then
+    if [ "$TEST_MODE" != 1 ]; then
+        c_warn "no MySQL/MariaDB found in aaPanel — installing MariaDB with apt (you can also install it from aaPanel → App Store)"
+        apt-get install -y -q mariadb-server mariadb-client && systemctl enable --now mariadb
+        MYSQL=$(command -v mariadb || command -v mysql)
+    fi
+    db_up || die "no MySQL/MariaDB server is running — install MySQL or MariaDB from aaPanel → App Store, then run this script again"
 fi
-mysql_root() { if [ -n "${MYSQL_ROOT_PASSWORD:-}" ]; then MYSQL_PWD="$MYSQL_ROOT_PASSWORD" "$MYSQL" -uroot "$@"; else "$MYSQL" -uroot "$@"; fi; }
-mysql_root -e "select 1" >/dev/null 2>&1 || die "cannot connect to MariaDB as root — set MYSQL_ROOT_PASSWORD=… (aaPanel → Databases → root password)"
+# Root password: env → any aaPanel database (old data/default.db or newer data/db/*.db) → socket auth → ask.
+panel_root_pw() {
+    python3 - "$PANEL" <<'PYPW' 2>/dev/null || true
+import glob, sqlite3, sys
+p = sys.argv[1]
+for f in glob.glob(p + "/data/*.db") + glob.glob(p + "/data/db/*.db"):
+    try:
+        c = sqlite3.connect(f)
+        for (t,) in c.execute("select name from sqlite_master where type='table'"):
+            cols = [r[1] for r in c.execute(f'pragma table_info("{t}")')]
+            if "mysql_root" in cols:
+                for (v,) in c.execute(f'select mysql_root from "{t}"'):
+                    if v:
+                        print(v); sys.exit(0)
+    except SystemExit:
+        raise
+    except Exception:
+        pass
+PYPW
+}
+MYSQL_ARGS=()
+try_db() { # $1 = password ("" = none) → sets MYSQL_ARGS on success
+    local pw=$1 target
+    for target in "-S/tmp/mysql.sock" "-S/run/mysqld/mysqld.sock" "-S/var/run/mysqld/mysqld.sock" "-h127.0.0.1" ""; do
+        case "$target" in -S*) [ -S "${target#-S}" ] || continue ;; esac
+        if MYSQL_PWD="$pw" "$MYSQL" -u"$MYSQL_ADMIN_USER" $target -e "select 1" >/dev/null 2>&1; then
+            MYSQL_ARGS=(-u"$MYSQL_ADMIN_USER"); [ -n "$target" ] && MYSQL_ARGS+=("$target"); DB_ROOT_PW=$pw; return 0
+        fi
+    done
+    return 1
+}
+DB_ROOT_PW=""
+{ [ -n "${MYSQL_ROOT_PASSWORD:-}" ] && try_db "$MYSQL_ROOT_PASSWORD"; } \
+  || { pw=$(panel_root_pw); [ -n "$pw" ] && try_db "$pw"; } \
+  || try_db "" \
+  || {
+      for attempt in 1 2 3; do
+          [ -r /dev/tty ] || break
+          printf 'MariaDB/MySQL root password (aaPanel → Databases → "Root password"): ' >/dev/tty
+          read -r -s pw </dev/tty; echo >/dev/tty
+          try_db "$pw" && break
+          echo "  wrong password" >/dev/tty
+      done
+      [ ${#MYSQL_ARGS[@]} -gt 0 ]
+  } || die "cannot connect to MariaDB as $MYSQL_ADMIN_USER — run again with: sudo MYSQL_ROOT_PASSWORD='…' bash deploy/install.sh (aaPanel → Databases → Root password)"
+mysql_root() { MYSQL_PWD="$DB_ROOT_PW" "$MYSQL" "${MYSQL_ARGS[@]}" "$@"; }
+c_ok "connected to the database server as $MYSQL_ADMIN_USER via ${MYSQL_ARGS[1]:-default socket}"
 mysql_root -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
   CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASS';
   CREATE USER IF NOT EXISTS '$DB_USER'@'127.0.0.1' IDENTIFIED BY '$DB_PASS';
