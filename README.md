@@ -5,7 +5,7 @@
 > **المحتوى القانوني فقط:** لا توجد أي ميزة لجلب محتوى من مواقع قرصنة أو تورنت. المحتوى من ملفاتك أو من مصادر بث مرخّصة تشترك فيها.
 
 ## التقنيات
-Laravel 12 (PHP 8.3) · MariaDB 10.11 · Inertia 2 + React 19 + TypeScript + Tailwind 4 + shadcn/ui · hls.js · ffmpeg/ffprobe (QSV/VAAPI/NVENC + تراجع للمعالج) · HLS fMP4 · Redis queues · Laravel Reverb · ClamAV · TMDB (اختياري).
+Laravel 13 (PHP 8.5) · MariaDB 10.11 · Inertia 2 + React 19 + TypeScript + Tailwind 4 + shadcn/ui · hls.js · ffmpeg/ffprobe (QSV/VAAPI/NVENC + تراجع للمعالج) · HLS fMP4 · Redis queues · Laravel Reverb · ClamAV · TMDB (اختياري).
 
 ## الهيكل
 ```
@@ -25,25 +25,41 @@ docs/           دليل aaPanel، التكامل، العتاد، تقرير ا
 ```
 
 ## التثبيت (Ubuntu Server 24.04 + aaPanel)
-الدليل الكامل خطوة بخطوة، مع مقاطع Nginx الجاهزة للصق، وإعدادات PHP، وSupervisor، والـ Cron، والمنافذ: **[docs/aapanel-setup.md](docs/aapanel-setup.md)**.
+**الخطوة اليدوية الوحيدة:** في aaPanel ← Website ← Add site ← الدومين `movexa.lan` واختر PHP 8.5. لا SSL ولا قاعدة بيانات ولا Rewrite.
 
-باختصار:
-1. `apt install ffmpeg clamav clamav-daemon inotify-tools bubblewrap` + تعريفات التسريع العتادي.
-2. إنشاء الموقع `movexa.lan` (PHP 8.3، Running directory `/public`) وقاعدة البيانات من الـ Panel.
-3. مجلدات البيانات في `/www/data/movexa` (قرص منفصل `noexec`)، ومستخدم `movexa-sandbox`، وملف `/usr/local/sbin/movexa-sandbox`.
-4. الصق [`deploy/nginx/movexa.lan.conf`](deploy/nginx/movexa.lan.conf) في Config file (المنفذ 8088، بدون 80/443).
-5. `cp .env.example .env` ← `php artisan key:generate` ← `php artisan reverb:install` ← `deploy/scripts/deploy.sh`.
-6. `php artisan movexa:create-admin you@example.lan --emergency` (أول حساب يمكن إنشاؤه أيضاً من صفحة التسجيل، ثم يُغلق التسجيل).
-7. عمال Supervisor، و Cron لـ `schedule:run` و `backup.sh`.
+ثم على السيرفر (root):
+```bash
+git clone https://github.com/code-create-innovate/Movexa.git /root/movexa
+```
+```bash
+sudo bash /root/movexa/deploy/install.sh
+```
+السكربت يضبط كل شيء: الحزم (ffmpeg، ClamAV، تعريفات GPU)، إعدادات PHP 8.5، مجلدات البيانات (noexec)، الـ sandbox، شهادة HTTPS من CA محلية، nginx على **8088 فقط**، قاعدة البيانات، Redis، بناء التطبيق، الخدمات الخلفية (systemd)، الـ Cron، الجدار الناري للشبكة المحلية، وحساب المسؤول. في النهاية يطبع الرابط وكلمة مرور المسؤول (ومحفوظة في `/root/movexa-install-summary.txt`). يمكن تشغيله مرة ثانية بأمان.
 
-الواجهة تُبنى بـ `npm ci && npm run build`؛ إن لم يتوفر Node على السيرفر، ابنِها على جهازك وارفع `public/build`.
+بعده: وجّه `movexa.lan` إلى IP السيرفر في الراوتر أو Pi-hole، وثبّت `/root/movexa-rootCA.crt` على الأجهزة. للتحديث لاحقاً: `sudo bash /www/wwwroot/movexa.lan/deploy/deploy.sh`.
+
+الشرح اليدوي التفصيلي لكل خطوة (للمرجعية أو لو أردت الضبط يدوياً): **[docs/aapanel-setup.md](docs/aapanel-setup.md)**.
+
+## الحسابات والصلاحيات
+لا توجد شاشة "من يشاهد؟": **كل فرد يدخل بحسابه** (اسم مستخدم أو بريد + كلمة مرور، و2FA اختيارياً). المسؤول ينشئ الحسابات من **الإدارة ← المستخدمون والصلاحيات** ويحدد لكل حساب:
+
+| الصلاحية | تتيح |
+|---|---|
+| البث المباشر · التنزيل · المشاهدة الجماعية | ميزات المشاهدة |
+| رفع الملفات · إدارة المكتبة · الحجر والأمان · مصادر البث · الحجب المخصص · الإحصائيات · إدارة المستخدمين | أجزاء لوحة الإدارة |
+| حد العمر (بدون / 0 / 7 / 12 / 13 / 16 / 18) | يرى فقط ما ضمن الحد |
+| المكتبات المسموحة | يرى مكتبات محددة فقط |
+| بثوث متزامنة، حصة التنزيل، إيقاف الحساب | حدود الاستخدام |
+
+المسؤول (admin) يملك كل الصلاحيات. كل شيء مطبق في الخادم (الواجهة تخفي ما لا يُسمح به فقط للتوضيح).
 
 ## الاختبارات
 ```bash
 php vendor/bin/phpunit                         # اختبارات الميزات والوحدات
 MOVEXA_TEST_CLAMD=/run/clamav/clamd.ctl php vendor/bin/phpunit tests/Feature/Security   # مع clamd حقيقي
-tests/e2e/run.sh                               # Playwright: المشغل، QR، التنزيل دون اتصال، الإضاءة، شاشة الإيقاف، المقدمة، الإيماءات
-sudo tests/nginx/run.sh                        # nginx + php-fpm + Reverb حقيقي على 8088 (حاوية تجريبية فقط: يعدّل /etc/hosts)
+tests/e2e/run.sh                               # Playwright: المشغل، الحسابات والصلاحيات، QR، التنزيل دون اتصال، الإضاءة، شاشة الإيقاف…
+sudo tests/nginx/run.sh                        # nginx + php-fpm + Reverb حقيقي على 8088 (حاوية تجريبية فقط)
+sudo tests/install/run.sh                      # يشغّل install.sh على aaPanel محاكى (حاوية تجريبية فقط)
 ```
 
 ## التوثيق

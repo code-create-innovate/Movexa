@@ -1,5 +1,16 @@
 # دليل إعداد Movexa على Ubuntu 24.04 + aaPanel
 
+## الطريقة المختصرة (موصى بها)
+1. aaPanel ← Website ← Add site ← `movexa.lan`، PHP **8.5** (ثبّت PHP 8.5 من App Store إن لم يكن موجوداً).
+2. `sudo bash deploy/install.sh` من نسخة المشروع.
+
+كل الأقسام التالية هي ما يفعله السكربت بالتفصيل (للمراجعة أو الضبط اليدوي). ملاحظات خاصة بالسكربت:
+- يعدّل `php.ini` و`php-cli.ini` لـ PHP 8.5 (نسخة احتياطية `*.movexa.bak`)، ويستبدل ملف Config الخاص بالموقع (نسخة `movexa.lan.conf.movexa.bak`).
+- الخدمات الخلفية تعمل عبر **systemd** (`systemctl status 'movexa-*'`) بدل Supervisor Manager، والـ Cron في `/etc/cron.d/movexa` — لذلك لا تظهر في صفحات Supervisor/Cron في الـ Panel.
+- قاعدة البيانات تُنشأ مباشرة في MariaDB (بكلمة مرور root المحفوظة في aaPanel)؛ لعرضها في الـ Panel: Databases ← "Get DB from server".
+- الجدار الناري: يضيف قواعد ufw للشبكة المحلية/VPN إن كان ufw مفعلاً، وإلا يطلب منك إضافة 8088 من قسم Security.
+- إذا أعاد الـ Panel كتابة ملف Config بعد تغيير الشهادة، شغّل السكربت مرة أخرى.
+
 > هذا الدليل يتقدم على أي تعليمات عامة. لا تعدّل إعدادات aaPanel الرئيسية يدوياً ولا تثبّت Nginx/PHP/MariaDB خارج الـ Panel.
 
 ## 1. الحزم خارج الـ Panel (apt + systemd)
@@ -31,11 +42,11 @@ UUID=<uuid>  /www/data/movexa  ext4  defaults,noexec,nosuid,nodev  0 2
 ```
 
 ## 3. الموقع وقاعدة البيانات
-- Website → Add site: `movexa.lan`، المجلد `/www/wwwroot/movexa.lan`، PHP 8.3، **Running directory = `/public`**.
+- Website → Add site: `movexa.lan`، المجلد `/www/wwwroot/movexa.lan`، PHP 8.5، **Running directory = `/public`**.
 - Databases → Add: قاعدة `movexa` ومستخدم مستقل.
 
-## 4. PHP 8.3
-App Store → PHP 8.3 → Install extensions: `redis`, `fileinfo`, `intl`, `imagick`, `exif`, `opcache`, (`pcntl` لـ CLI).
+## 4. PHP 8.5
+App Store → PHP 8.5 → Install extensions: `redis`, `fileinfo`, `intl`, `imagick`, `exif`, `opcache`, (`pcntl` لـ CLI).
 
 Disabled functions — أزل من القائمة **فقط**:
 | الدالة | السبب |
@@ -97,15 +108,15 @@ DNS: في Pi-hole/AdGuard Home → Local DNS: `movexa.lan → <IP السيرفر
 ## 7. Supervisor Manager (App Store)
 | الاسم | الأمر | المستخدم | العدد |
 |---|---|---|---|
-| movexa-queue | `/www/server/php/83/bin/php /www/wwwroot/movexa.lan/artisan queue:work redis --queue=default --sleep=3 --tries=3 --max-time=3600` | www | 1 |
-| movexa-scan | `/www/server/php/83/bin/php /www/wwwroot/movexa.lan/artisan queue:work redis --queue=scan --timeout=21600 --tries=1` | www | 1 |
-| movexa-transcode | `/www/server/php/83/bin/php /www/wwwroot/movexa.lan/artisan queue:work redis --queue=transcode --timeout=21600 --tries=1` | www | = `MOVEXA_MAX_TRANSCODES` |
-| movexa-reverb | `/www/server/php/83/bin/php /www/wwwroot/movexa.lan/artisan reverb:start --host=127.0.0.1 --port=8080` | www | 1 |
-| movexa-watch | `/www/server/php/83/bin/php /www/wwwroot/movexa.lan/artisan movexa:watch` | www | 1 |
-| movexa-live | `/www/server/php/83/bin/php /www/wwwroot/movexa.lan/artisan movexa:live-reaper --loop` | www | 1 |
+| movexa-queue | `/www/server/php/85/bin/php /www/wwwroot/movexa.lan/artisan queue:work redis --queue=default --sleep=3 --tries=3 --max-time=3600` | www | 1 |
+| movexa-scan | `/www/server/php/85/bin/php /www/wwwroot/movexa.lan/artisan queue:work redis --queue=scan --timeout=21600 --tries=1` | www | 1 |
+| movexa-transcode | `/www/server/php/85/bin/php /www/wwwroot/movexa.lan/artisan queue:work redis --queue=transcode --timeout=21600 --tries=1` | www | = `MOVEXA_MAX_TRANSCODES` |
+| movexa-reverb | `/www/server/php/85/bin/php /www/wwwroot/movexa.lan/artisan reverb:start --host=127.0.0.1 --port=8080` | www | 1 |
+| movexa-watch | `/www/server/php/85/bin/php /www/wwwroot/movexa.lan/artisan movexa:watch` | www | 1 |
+| movexa-live | `/www/server/php/85/bin/php /www/wwwroot/movexa.lan/artisan movexa:live-reaper --loop` | www | 1 |
 
 ## 8. Cron (قسم Cron)
-- كل دقيقة (Shell): `cd /www/wwwroot/movexa.lan && /www/server/php/83/bin/php artisan schedule:run >> /dev/null 2>&1`
+- كل دقيقة (Shell): `cd /www/wwwroot/movexa.lan && /www/server/php/85/bin/php artisan schedule:run >> /dev/null 2>&1`
 - يومياً 03:20: `/www/wwwroot/movexa.lan/deploy/scripts/backup.sh` (نسخ aaPanel الافتراضي لا يشمل `/www/data/movexa`).
 
 ## 9. الجدار الناري (Security)
@@ -116,9 +127,9 @@ DNS: في Pi-hole/AdGuard Home → Local DNS: `movexa.lan → <IP السيرفر
 ## 10. التثبيت
 ```bash
 cd /www/wwwroot/movexa.lan && git clone https://github.com/code-create-innovate/Movexa.git . 
-cp .env.example .env && /www/server/php/83/bin/php artisan key:generate && /www/server/php/83/bin/php artisan reverb:install
-deploy/scripts/deploy.sh
-/www/server/php/83/bin/php artisan movexa:create-admin admin@movexa.lan --emergency
-/www/server/php/83/bin/php artisan movexa:token homecore homecore:read      # ضعه في HomeCore
-/www/server/php/83/bin/php artisan movexa:token cloudsync cloudsync:ingest  # ضعه في CloudSync
+cp .env.example .env && /www/server/php/85/bin/php artisan key:generate && /www/server/php/85/bin/php artisan reverb:install
+deploy/deploy.sh
+/www/server/php/85/bin/php artisan movexa:create-admin admin --emergency   # اسم مستخدم، وكلمة مرور ≥ 12
+/www/server/php/85/bin/php artisan movexa:token homecore homecore:read      # ضعه في HomeCore
+/www/server/php/85/bin/php artisan movexa:token cloudsync cloudsync:ingest  # ضعه في CloudSync
 ```
