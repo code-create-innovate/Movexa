@@ -19,7 +19,9 @@ class AuthenticatedSessionController extends Controller
     public function create(Request $request): Response
     {
         return Inertia::render('auth/login', [
-            'canResetPassword' => Route::has('password.request'),
+            // Reset links need working email (usually not configured on a LAN server); sign-up only for the very first account.
+            'canResetPassword' => Route::has('password.request') && ! in_array(config('mail.default'), ['log', 'array'], true),
+            'canRegister' => RegisteredUserController::open(),
             'status' => $request->session()->get('status'),
         ]);
     }

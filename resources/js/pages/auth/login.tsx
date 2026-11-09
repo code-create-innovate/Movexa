@@ -19,11 +19,12 @@ type LoginForm = {
 interface LoginProps {
     status?: string;
     canResetPassword: boolean;
+    canRegister: boolean;
 }
 
 import { useT } from '@/lib/i18n';
 
-export default function Login({ status, canResetPassword }: LoginProps) {
+export default function Login({ status, canResetPassword, canRegister }: LoginProps) {
     const { locale } = useT();
     const { data, setData, post, processing, errors, reset } = useForm<LoginForm>({
         email: '',
@@ -40,7 +41,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
 
     return (
         <AuthLayout title={locale === 'ar' ? 'تسجيل الدخول' : 'Sign in'} description={locale === 'ar' ? 'كل فرد يدخل بحسابه الخاص' : 'Everyone signs in with their own account'}>
-            <Head title="Log in" />
+            <Head title={locale === 'ar' ? 'تسجيل الدخول' : 'Sign in'} />
 
             <form className="flex flex-col gap-6" onSubmit={submit}>
                 <div className="grid gap-6">
@@ -63,10 +64,10 @@ export default function Login({ status, canResetPassword }: LoginProps) {
 
                     <div className="grid gap-2">
                         <div className="flex items-center">
-                            <Label htmlFor="password">Password</Label>
+                            <Label htmlFor="password">{locale === 'ar' ? 'كلمة المرور' : 'Password'}</Label>
                             {canResetPassword && (
                                 <TextLink href={route('password.request')} className="ml-auto text-sm" tabIndex={5}>
-                                    Forgot password?
+                                    {locale === 'ar' ? 'نسيت كلمة المرور؟' : 'Forgot password?'}
                                 </TextLink>
                             )}
                         </div>
@@ -78,28 +79,30 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                             autoComplete="current-password"
                             value={data.password}
                             onChange={(e) => setData('password', e.target.value)}
-                            placeholder="Password"
+                            placeholder={locale === 'ar' ? 'كلمة المرور' : 'Password'}
                         />
                         <InputError message={errors.password} />
                     </div>
 
                     <div className="flex items-center space-x-3">
                         <Checkbox id="remember" name="remember" tabIndex={3} />
-                        <Label htmlFor="remember">Remember me</Label>
+                        <Label htmlFor="remember">{locale === 'ar' ? 'تذكرني' : 'Remember me'}</Label>
                     </div>
 
                     <Button type="submit" className="mt-4 w-full" tabIndex={4} disabled={processing}>
                         {processing && <LoaderCircle className="h-4 w-4 animate-spin" />}
-                        Log in
+                        {locale === 'ar' ? 'دخول' : 'Sign in'}
                     </Button>
                 </div>
 
-                <div className="text-muted-foreground text-center text-sm">
-                    Don't have an account?{' '}
-                    <TextLink href={route('register')} tabIndex={5}>
-                        Sign up
-                    </TextLink>
-                </div>
+                {canRegister && (
+                    <div className="text-muted-foreground text-center text-sm">
+                        {locale === 'ar' ? 'أول تشغيل؟ ' : 'First run? '}
+                        <TextLink href={route('register')} tabIndex={5}>
+                            {locale === 'ar' ? 'أنشئ حساب المسؤول' : 'Create the admin account'}
+                        </TextLink>
+                    </div>
+                )}
             </form>
 
             <a href="/tv" className="text-muted-foreground text-center text-sm underline-offset-4 hover:underline">📺 {locale === 'ar' ? 'الدخول على التلفزيون برمز QR' : 'Sign in on a TV with a QR code'}</a>
