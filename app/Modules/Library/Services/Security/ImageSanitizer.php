@@ -22,7 +22,6 @@ class ImageSanitizer
         $dest = preg_replace('/\.[a-z0-9]+$/i', '', $dest).($useWebp ? '.webp' : '.jpg');
         @mkdir(dirname($dest), 0755, true);
         $ok = $useWebp ? imagewebp($img, $dest, 82) : imagejpeg($img, $dest, 85);
-        imagedestroy($img);
         if (! $ok) {
             throw new RuntimeException('image encode failed');
         }
