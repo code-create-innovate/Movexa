@@ -551,15 +551,12 @@ Next steps
  2. Install /root/movexa-rootCA.crt on each device.
  3. Sign in as "$ADMIN_USER", then Admin → Users & permissions: create one account per person.
  4. Admin → Library: add your movies / shows folders (inside $DATA_DIR) or upload files.
- 5. Optional — 10 legally free films to try it (roughly 5–10 GB, Blender + public domain):
-    cd $SITE_DIR && sudo -u www $PHP artisan movexa:samples
 
 الخطوات التالية
  1. في الراوتر أو Pi-hole أو AdGuard: وجّه $DOMAIN إلى $(hostname -I 2>/dev/null | awk '{print $1}').
  2. ثبّت الشهادة /root/movexa-rootCA.crt على كل جهاز (هاتف، كمبيوتر، تلفزيون).
  3. ادخل بالمستخدم "$ADMIN_USER"، ثم الإدارة ← المستخدمون والصلاحيات: أنشئ حساباً لكل فرد وحدد صلاحياته.
  4. الإدارة ← المكتبة: أضف مجلدات الأفلام والمسلسلات (داخل $DATA_DIR) أو ارفع الملفات.
- 5. اختياري — 10 أفلام مجانية قانونياً للتجربة (حوالي 5–10 GB): الأمر في السطر 5 بالأعلى.
 $( [ ${#WARNINGS[@]} -gt 0 ] && printf '\nWarnings:\n' && printf ' - %s\n' "${WARNINGS[@]}" )
 SUM
 echo; cat "$SUMMARY"; echo; echo "(saved to $SUMMARY)"

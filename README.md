@@ -57,15 +57,17 @@ sudo bash /root/movexa/deploy/install.sh --site /www/wwwroot/movexa.lan --domain
 
 المسؤول (admin) يملك كل الصلاحيات. كل شيء مطبق في الخادم (الواجهة تخفي ما لا يُسمح به فقط للتوضيح).
 
-## أفلام مجانية للتجربة
+## أفلام مجانية للتجربة (سكربت منفصل، اختياري)
+
+مش جزء من التثبيت. شغّله بروحه لو تبي أفلام تجرّب بيها:
 
 ```bash
-cd /www/wwwroot/movexa.lan && sudo -u www /www/server/php/85/bin/php artisan movexa:samples
+sudo bash /www/wwwroot/movexa.lan/deploy/sample-films.sh
 ```
 
-ينزّل 10 أفلام قانونية (أفلام Blender المفتوحة برخصة CC BY، وكلاسيكيات في الملكية العامة) من مصدرين رسميين فقط:
-download.blender.org و archive.org. تنحط في مكتبة "Free films" وتمر على فحص الحماية كأي ملف.
-`--list` يعرض الأفلام والرخص، و`--only=1 --only=5` ينزّل أفلاماً محددة. لو فشل فيلم، أعد الأمر وهو يكمّل الناقص.
+ينزّل 10 أفلام قانونية (أفلام Blender المفتوحة برخصة CC BY، وكلاسيكيات في الملكية العامة) من download.blender.org و archive.org فقط،
+ويحطها في مكتبة "Free films" وتمر على فحص الحماية كأي ملف. `--list` يعرض الأفلام والرخص، و`--only 1 --only 5` لأفلام محددة،
+و`--no-scan` للتنزيل بس. إعادة التشغيل تكمّل التنزيل الناقص وتتخطى الأفلام الجاهزة.
 
 ## الاختبارات
 ```bash
