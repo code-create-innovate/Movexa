@@ -8,6 +8,7 @@ use App\Modules\Library\Jobs\ScanLibraryJob;
 use App\Modules\Library\Models\IngestJob;
 use App\Modules\Library\Models\Library;
 use App\Modules\Library\Services\LibraryScanner;
+use App\Modules\Library\Services\SampleFilms;
 use App\Modules\LiveTV\Jobs\RecordProgramJob;
 use App\Modules\LiveTV\Models\Recording;
 use App\Modules\LiveTV\Services\LiveStreamManager;
@@ -55,6 +56,53 @@ class MovexaCommands
                 $this->info("{$lib->name}: ".app(LibraryScanner::class)->scan($lib).' new file(s) queued');
             }
         })->purpose('Scan libraries (and the inbox drop folder)');
+
+        Artisan::command('movexa:samples {--list : Only show the films and their licenses} {--only=* : Download only these (title or number)}', function () {
+            $svc = app(SampleFilms::class);
+            $films = SampleFilms::FILMS;
+            if ($this->option('list')) {
+                $this->table(['#', 'Film', 'License'], collect($films)->map(fn ($f, $i) => [$i + 1, SampleFilms::folder($f), $f[2]])->all());
+
+                return 0;
+            }
+            if ($only = $this->option('only')) {
+                $films = array_filter($films, fn ($f, $i) => in_array((string) ($i + 1), $only, true) || in_array(strtolower($f[0]), array_map('strtolower', $only), true), ARRAY_FILTER_USE_BOTH);
+            }
+            $library = $svc->library();
+            $failed = [];
+            foreach ($films as $film) {
+                $name = SampleFilms::folder($film);
+                if ($svc->existing($film)) {
+                    $this->line("✓ {$name} — already downloaded");
+
+                    continue;
+                }
+                try {
+                    $src = $svc->resolve($film);
+                    if (! $src) {
+                        throw new \RuntimeException('no matching file found on the official sources');
+                    }
+                    $this->line("↓ {$name} ← {$src['source']}");
+                    $last = -1;
+                    $path = $svc->download($film, $src, function ($done, $total) use (&$last) {
+                        $pct = intdiv($done * 100, $total);
+                        if ($pct >= $last + 10) {
+                            $this->output->write(sprintf("   %d%% of %d MB\r", $last = $pct - $pct % 10, $total / 1048576));
+                        }
+                    });
+                    $this->info("✓ {$name} → {$path}");
+                } catch (\Throwable $e) {
+                    $failed[] = $name;
+                    $this->error("✗ {$name}: ".$e->getMessage());
+                }
+            }
+            $this->info("Library \"{$library->name}\" ({$library->path}): ".app(LibraryScanner::class)->scan($library).' new file(s) queued for the security check');
+            if ($failed) {
+                $this->warn('Not downloaded: '.implode(', ', $failed).' — run the command again later.');
+            }
+
+            return $failed ? 1 : 0;
+        })->purpose('Download 10 legally free films (Blender open movies + public-domain classics) to try Movexa');
 
         Artisan::command('movexa:watch', function () {
             $bin = config('movexa.binaries.inotifywait');
