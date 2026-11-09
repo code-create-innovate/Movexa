@@ -21,13 +21,19 @@ class MovexaCommands
 {
     public static function register(): void
     {
-        Artisan::command('movexa:create-admin {email} {--name=Admin} {--emergency}', function (string $email) {
-            $password = $this->secret('Password (min 12 chars)');
+        Artisan::command('movexa:create-admin {login} {--name=Admin} {--email=} {--password=} {--emergency}', function (string $login) {
+            // {login}: a username (or an email). --password for non-interactive installs; otherwise prompted.
+            $password = $this->option('password') ?: $this->secret('Password (min 12 chars)');
             if (strlen((string) $password) < 12) {
-                return $this->error('Password too short') ?? 1;
+                return $this->error('Password too short (min 12)') ?? 1;
             }
-            $user = User::updateOrCreate(['email' => $email], ['name' => $this->option('name'), 'password' => $password, 'is_admin' => true, 'is_emergency_admin' => (bool) $this->option('emergency')]);
-            $this->info("Admin {$email} ready.");
+            $isEmail = str_contains($login, '@');
+            $username = $isEmail ? strstr($login, '@', true) : $login;
+            $email = $this->option('email') ?: ($isEmail ? $login : $login.'@movexa.local');
+            $user = User::where('username', $username)->orWhere('email', $email)->first() ?? new User;
+            $user->fill(['name' => $this->option('name'), 'username' => $username, 'email' => $email, 'password' => $password, 'is_admin' => true,
+                'is_emergency_admin' => (bool) $this->option('emergency'), 'disabled_at' => null])->save();
+            $this->info("Admin \"{$username}\" ready.");
         })->purpose('Create/update a local admin (use --emergency for the HomeCore-independent account)');
 
         Artisan::command('movexa:token {name} {abilities*}', function (string $name, array $abilities) {
