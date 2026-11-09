@@ -26,6 +26,6 @@ class RegistrationTest extends TestCase
         ]);
 
         $this->assertAuthenticated();
-        $response->assertRedirect(route('profiles.select', absolute: false));
+        $response->assertRedirect(route('home', absolute: false));
     }
 }

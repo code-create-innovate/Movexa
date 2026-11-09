@@ -20,7 +20,8 @@ class ParentalControlTest extends TestCase
     public function test_kid_cannot_reach_adult_content_by_any_path(): void
     {
         $user = User::factory()->create();
-        $kid = $user->profiles()->create(['name' => 'Kid', 'is_kid' => true, 'max_age_rating' => 7]);
+        $user->update(['max_age_rating' => 7]); // age limit set by the admin on the child's own account
+        $kid = $user->primaryProfile();
         $adultFile = MediaFixtures::readyMovie($this->dataRoot.'/library', ['title' => 'Adult Film', 'age_rating' => 18, 'poster_path' => 'p.webp']);
         $unrated = MediaFixtures::readyMovie($this->dataRoot.'/library', ['title' => 'Unrated Film', 'age_rating' => null]);
         $kidsFile = MediaFixtures::readyMovie($this->dataRoot.'/library', ['title' => 'Cartoon', 'age_rating' => 0]);
@@ -30,7 +31,7 @@ class ParentalControlTest extends TestCase
         $job = TranscodeJob::create(['media_file_id' => $adultFile->id, 'mode' => 'remux', 'profile_key' => 'remux', 'status' => 'done', 'output_dir' => $this->dataRoot.'/cache']);
         file_put_contents($this->dataRoot.'/cache/master.m3u8', '#EXTM3U');
 
-        $this->actingAs($user)->withSession([ProfileContext::SESSION_KEY => $kid->id]);
+        $this->actingAs($user);
 
         $this->get('/home')->assertOk()->assertInertia(fn (AssertableInertia $p) => $p->component('browse/home')
             ->where('rows', fn ($rows) => collect($rows)->pluck('items')->flatten(1)->pluck('title')->diff(['Cartoon'])->isEmpty()));

@@ -1,5 +1,5 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { ArrowLeftRight, Ban, Sparkles, Download, Gamepad2, MonitorSmartphone, Film, Globe, Home, House, List, LogOut, Menu, Radio, Search, Settings, Shield, Tv } from 'lucide-react';
+import { Ban, Sparkles, Download, Gamepad2, MonitorSmartphone, Film, Globe, Home, House, List, LogOut, Menu, Radio, Search, Settings, Shield, Tv } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
 import { MovexaIntro } from '@/components/movexa/intro';
 import { PickDialog } from '@/components/movexa/pick-dialog';
@@ -51,9 +51,9 @@ export default function MovexaLayout({ title, children, transparent = false }: {
     const nav = [
         { href: '/home', label: t.home, icon: Home },
         { href: '/search', label: t.search, icon: Search },
-        { href: '/live', label: t.live, icon: Radio },
+        ...(auth.user?.can.live ? [{ href: '/live', label: t.live, icon: Radio }] : []),
         { href: '/history', label: t.history, icon: List },
-        ...(auth.user?.is_admin && !profile?.is_kid ? [{ href: '/admin', label: t.admin, icon: Shield }] : []),
+        ...(auth.user?.manage && !viewAs ? [{ href: '/admin', label: t.admin, icon: Shield }] : []),
     ];
 
     return (
@@ -96,17 +96,16 @@ export default function MovexaLayout({ title, children, transparent = false }: {
                         {profile && (
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <button className="rounded-md" aria-label={profile.name}><ProfileAvatar name={profile.name} color={profile.avatar_color} /></button>
+                                    <button className="rounded-md" aria-label={auth.user?.name ?? profile.name}><ProfileAvatar name={auth.user?.name ?? profile.name} color={profile.avatar_color} /></button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-56">
-                                    <div className="px-2 py-1.5 text-sm font-semibold" dir="auto">{profile.name}</div>
+                                    <div className="px-2 py-1.5 text-sm font-semibold" dir="auto">{auth.user?.name}{auth.user?.username && <span className="block text-xs font-normal text-muted-foreground" dir="ltr">@{auth.user.username}</span>}</div>
                                     <DropdownMenuSeparator />
-                                    <DropdownMenuItem asChild><Link href="/profiles"><ArrowLeftRight /> {t.switchProfile}</Link></DropdownMenuItem>
-                                    {!profile.is_kid && <DropdownMenuItem asChild><Link href="/settings/profile"><Settings /> {t.settings}</Link></DropdownMenuItem>}
+                                    <DropdownMenuItem asChild><Link href="/settings/profile"><Settings /> {t.settings}</Link></DropdownMenuItem>
                                     <DropdownMenuItem asChild><Link href="/settings/playback"><Sparkles /> {t.visuals.title}</Link></DropdownMenuItem>
-                                    {!profile.is_kid && !viewAs && <DropdownMenuItem asChild><Link href="/blocks"><Ban /> {t.blocks.title}</Link></DropdownMenuItem>}
-                                    <DropdownMenuItem asChild><Link href="/live"><Tv /> {t.live}</Link></DropdownMenuItem>
-                                    <DropdownMenuItem asChild><Link href="/downloads"><Download /> {t.devices.downloads}</Link></DropdownMenuItem>
+                                    {auth.user?.can.blocks && !viewAs && <DropdownMenuItem asChild><Link href="/blocks"><Ban /> {t.blocks.title}</Link></DropdownMenuItem>}
+                                    {auth.user?.can.live && <DropdownMenuItem asChild><Link href="/live"><Tv /> {t.live}</Link></DropdownMenuItem>}
+                                    {auth.user?.can.download && <DropdownMenuItem asChild><Link href="/downloads"><Download /> {t.devices.downloads}</Link></DropdownMenuItem>}
                                     <DropdownMenuItem asChild><Link href="/remote"><Gamepad2 /> {t.devices.remote}</Link></DropdownMenuItem>
                                     <DropdownMenuItem asChild><Link href="/devices"><MonitorSmartphone /> {t.devices.myDevices}</Link></DropdownMenuItem>
                                     <DropdownMenuSeparator />

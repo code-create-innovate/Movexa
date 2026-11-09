@@ -43,10 +43,10 @@ class HandleInertiaRequests extends Middleware
             'name' => config('app.name'),
             'locale' => app()->getLocale(),
             'auth' => [
-                'user' => $user?->only('id', 'name', 'email', 'is_admin', 'locale', 'downloads_enabled'),
+                'user' => $user ? $user->only('id', 'name', 'username', 'email', 'is_admin', 'locale') + ['can' => $user->effectivePermissions(), 'manage' => $user->canManageAnything()] : null,
             ],
             'viewAs' => app(\App\Modules\Core\Services\ProfileContext::class)->viewingAs(),
-            'profile' => $profile ? $profile->only('id', 'name', 'avatar_color', 'is_kid', 'max_age_rating', 'locale', 'subtitle_prefs') + ['settings' => $profile->allSettings()] : null,
+            'profile' => $profile ? $profile->only('id', 'name', 'avatar_color', 'locale', 'subtitle_prefs') + ['settings' => $profile->allSettings(), 'age_limit' => $profile->ageLimit()] : null,
             'homecore' => ['url' => config('movexa.homecore.url'), 'sso' => (bool) config('movexa.homecore.oidc.enabled'), 'theme' => config('movexa.homecore.theme_css')],
             'reverb' => config('broadcasting.default') === 'reverb' ? [
                 'key' => config('broadcasting.connections.reverb.key'),

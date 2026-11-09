@@ -37,13 +37,7 @@ class MediaAccessController extends Controller
         abort_if(! $claims || ! $user || (int) $claims['u'] !== $user->id, 403);
         $profile = $this->profiles->current();
         abort_if($claims['p'] !== null && $profile?->id !== (int) $claims['p'], 403);
-        if (! $profile) {
-            // Only exception: "all ages" small posters on the profile picker (logged in, no profile yet).
-            abort_unless($claims['k'] === 'img' && $path === 'poster_small' && $claims['p'] === null, 403);
-            $profile = \App\Modules\Library\Services\Discovery::accountProfile($user->id);
-            $item = \App\Modules\Library\Models\MediaItem::find((int) $claims['i']);
-            abort_unless($item && $item->age_rating === 0, 404);
-        }
+        abort_if(! $profile, 403);
 
         // Strict relative path: no traversal, no hidden files.
         abort_unless(preg_match('#^(?:[A-Za-z0-9_\-]+/)?[A-Za-z0-9_\-]+(?:\.[A-Za-z0-9]{1,5})?$#', $path), 404);

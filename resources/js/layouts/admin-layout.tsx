@@ -1,4 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
+import type { SharedData } from '@/types';
 import type { ReactNode } from 'react';
 import MovexaLayout from '@/layouts/movexa-layout';
 import { useT } from '@/lib/i18n';
@@ -6,10 +7,13 @@ import { cn } from '@/lib/utils';
 
 export default function AdminLayout({ title, children }: { title: string; children: ReactNode }) {
     const { t } = useT();
-    const url = usePage().url;
-    const tabs = [
-        ['/admin', t.adminUi.dashboard], ['/admin/quarantine', t.adminUi.quarantine], ['/admin/matches', t.adminUi.matches], ['/admin/live', t.adminUi.liveSources], ['/blocks', t.blocks.title],
-    ];
+    const { url, props } = usePage<SharedData>();
+    const can = props.auth.user?.can;
+    const tabs = ([
+        ['/admin', t.adminUi.dashboard, true], ['/admin/users', t.accounts.title, can?.users], ['/admin/library', t.accounts.library, can?.library || can?.upload],
+        ['/admin/matches', t.adminUi.matches, can?.library], ['/admin/quarantine', t.adminUi.quarantine, can?.quarantine], ['/admin/live', t.adminUi.liveSources, can?.live_manage],
+        ['/blocks', t.blocks.title, can?.blocks],
+    ] as [string, string, boolean | undefined][]).filter(([, , ok]) => ok);
     return (
         <MovexaLayout title={title}>
             <div className="px-4 py-6 md:px-10">

@@ -60,16 +60,16 @@ class VisualsDataTest extends TestCase
         $this->get($start['colors'])->assertForbidden();
     }
 
-    public function test_banner_and_wall_respect_the_kid_limit_and_profile_picker_only_shows_all_ages(): void
+    public function test_banner_and_wall_respect_the_account_age_limit(): void
     {
         $profile = $this->actingAsProfile();
-        $kid = $profile->user->profiles()->create(['name' => 'Kid', 'is_kid' => true, 'max_age_rating' => 7]);
+        $kid = $this->account(['max_age_rating' => 7])->primaryProfile();
         $lib = $this->dataRoot.'/library';
         foreach ([0, 0, 7, 13, 16, 18, 18] as $i => $age) {
             $f = MediaFixtures::readyMovie($lib, ['title' => "T{$i}", 'age_rating' => $age]);
             $this->poster($f->item, [20 * $i, 100, 100]);
         }
-        $this->withSession([ProfileContext::SESSION_KEY => $kid->id]);
+        $this->actingAs($kid->user);
         $page = $this->get('/home')->assertOk()->viewData('page')['props'];
         $this->assertNotEmpty($page['banner']);
         $this->assertLessThanOrEqual(8, count($page['banner']));
@@ -81,15 +81,6 @@ class VisualsDataTest extends TestCase
         }
         $this->assertCount(3, $page['wall']);
 
-        // Profile picker (no profile yet): only age 0 posters.
-        $this->flushSession();
-        $props = $this->actingAs($profile->user)->get('/profiles')->viewData('page')['props'];
-        $this->assertCount(2, $props['wall']);
-        foreach ($props['wall'] as $w) {
-            $this->get($w['src'])->assertOk();
-        }
-        $adult = MediaItem::where('age_rating', 18)->first();
-        $this->get(app(MediaSigner::class)->url('img', $adult->id, $profile->user_id, null, 'poster_small'))->assertNotFound();
     }
 
     public function test_top10_counts_only_real_views_respects_age_and_hides_when_sparse(): void
@@ -122,14 +113,14 @@ class VisualsDataTest extends TestCase
         $this->assertSame(1, $top['items'][0]['rank']);
 
         // Kid: M5 (18+) excluded → 5 titles left → still shown; then old views expire → hidden.
-        $kid = $profile->user->profiles()->create(['name' => 'Kid', 'is_kid' => true, 'max_age_rating' => 7]);
-        $this->withSession([ProfileContext::SESSION_KEY => $kid->id]);
+        $kid = $this->account(['max_age_rating' => 7])->primaryProfile();
+        $this->actingAs($kid->user);
         $kidTop = collect($this->get('/home')->viewData('page')['props']['rows'])->firstWhere('key', 'top_movies');
         $this->assertSame(['M1', 'M4', 'M0', 'M3', 'M2'], array_column($kidTop['items'], 'title'));
         DB::table('view_events')->whereIn('media_item_id', [$files[2]->media_item_id])->delete();
         $this->assertNull(collect($this->get('/home')->viewData('page')['props']['rows'])->firstWhere('key', 'top_movies'));
         $this->travel(31)->days();
-        $this->withSession([ProfileContext::SESSION_KEY => $profile->id]);
+        $this->actingAs($profile->user);
         $this->assertNull(collect($this->get('/home')->viewData('page')['props']['rows'])->firstWhere('key', 'top_movies'));
     }
 

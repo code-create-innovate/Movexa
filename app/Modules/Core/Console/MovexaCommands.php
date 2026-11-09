@@ -27,7 +27,6 @@ class MovexaCommands
                 return $this->error('Password too short') ?? 1;
             }
             $user = User::updateOrCreate(['email' => $email], ['name' => $this->option('name'), 'password' => $password, 'is_admin' => true, 'is_emergency_admin' => (bool) $this->option('emergency')]);
-            $user->profiles()->exists() || $user->profiles()->create(['name' => $user->name]);
             $this->info("Admin {$email} ready.");
         })->purpose('Create/update a local admin (use --emergency for the HomeCore-independent account)');
 

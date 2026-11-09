@@ -38,13 +38,18 @@ abstract class TestCase extends BaseTestCase
         return (new \App\Modules\Library\Services\Security\ClamdScanner)->available();
     }
 
-    /** Authenticated user with an active profile in the session. */
+    /** Signs in a (new) account and returns its viewing profile. */
     protected function actingAsProfile(?Profile $profile = null, array $userAttrs = []): Profile
     {
-        $profile ??= Profile::factory()->for(User::factory()->create($userAttrs))->create();
+        $profile ??= User::factory()->create($userAttrs)->primaryProfile();
         $this->actingAs($profile->user);
-        $this->withSession([ProfileContext::SESSION_KEY => $profile->id]);
 
         return $profile;
+    }
+
+    /** A separate account (e.g. a child with an age limit set by the admin). */
+    protected function account(array $attrs = []): User
+    {
+        return User::factory()->create($attrs);
     }
 }

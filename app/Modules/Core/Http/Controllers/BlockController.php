@@ -22,9 +22,8 @@ use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 /**
- * Custom blocking. Admin: any profile/account. Account owner: only profiles of their own account.
- * Changes need the password (or the parental PIN). Blocked profiles never see this page (kid profiles are refused,
- * and blocks targeting the current profile are hidden from the list).
+ * Custom blocking per account. Allowed for admins and accounts with the "blocks" permission (route middleware).
+ * Every change needs the user's password. Nobody (except admins) sees blocks that target their own account.
  */
 class BlockController extends Controller
 {
@@ -32,17 +31,16 @@ class BlockController extends Controller
 
     private function guard(Request $request): void
     {
-        abort_if(! $this->ctx->current() || $this->ctx->current()->is_kid || $request->session()->has('view_as'), 403);
+        abort_if($request->session()->has('view_as'), 403);
     }
 
-    /** Which subjects the current user may block for. */
+    /** Subjects: accounts (never the caller's own account unless admin). */
     private function allowedSubjects(Request $request): array
     {
         $user = $request->user();
-        $profiles = $user->is_admin ? Profile::with('user:id,name')->get() : $user->profiles()->with('user:id,name')->get();
-        $users = $user->is_admin ? User::all(['id', 'name']) : collect([$user->only('id', 'name')]);
+        $users = User::orderBy('name')->get(['id', 'name', 'username'])->when(! $user->is_admin, fn ($c) => $c->where('id', '!=', $user->id))->values();
 
-        return [$profiles, $users];
+        return [collect(), $users];
     }
 
     public function index(Request $request)
@@ -54,23 +52,16 @@ class BlockController extends Controller
 
         $q = AccessBlock::query()->latest();
         if (! $user->is_admin) {
-            $q->where(fn ($w) => $w->where(fn ($a) => $a->where('subject_type', 'profile')->whereIn('subject_id', $profiles->pluck('id')))
-                ->orWhere(fn ($a) => $a->where('subject_type', 'user')->where('subject_id', $user->id)));
-        }
-        // Never show a profile the blocks that target itself (unless admin).
-        if (! $user->is_admin) {
-            $q->where(fn ($w) => $w->where('subject_type', '!=', 'profile')->orWhere('subject_id', '!=', $me->id));
+            $q->where(fn ($w) => $w->where('subject_type', '!=', 'user')->orWhere('subject_id', '!=', $user->id))
+                ->where(fn ($w) => $w->where('subject_type', '!=', 'profile')->orWhere('subject_id', '!=', $user->primaryProfile()->id));
         }
         $blocks = $q->get()->map(fn ($b) => $this->present($b, $profiles, $users));
 
-        $noPin = $user->profiles()->whereNull('pin_hash')->where('is_kid', false)->count();
-
         return Inertia::render('blocks/index', [
             'blocks' => $blocks,
-            'profiles' => $profiles->map(fn ($p) => ['id' => $p->id, 'name' => $p->name, 'account' => $p->user->name, 'user_id' => $p->user_id, 'has_pin' => $p->has_pin]),
             'users' => $users,
-            'warning_no_pin' => $noPin > 0,
             'isAdmin' => (bool) $user->is_admin,
+            'canViewAs' => $user->hasPermission('users'),
             'targets' => [
                 'genres' => MediaItem::pluck('genres')->flatten()->filter()->unique()->sort()->values(),
                 'tags' => MediaItem::pluck('tags')->flatten()->filter()->unique()->sort()->values(),
@@ -88,11 +79,7 @@ class BlockController extends Controller
         $this->guard($request);
         [$profiles, $users] = $this->allowedSubjects($request);
 
-        return [
-            'profiles' => $profiles->map(fn ($p) => ['id' => $p->id, 'name' => $p->name, 'account' => $p->user->name, 'has_pin' => $p->has_pin])->values(),
-            'users' => $users->values(),
-            'warning_no_pin' => $request->user()->profiles()->whereNull('pin_hash')->where('is_kid', false)->exists(),
-        ];
+        return ['users' => $users->values()];
     }
 
     public function store(Request $request)
@@ -102,7 +89,6 @@ class BlockController extends Controller
             'target_type' => ['required', 'in:item,season,episode,genre,collection,tag,library,channel,channel_category'],
             'target_id' => ['nullable', 'integer'],
             'target_value' => ['nullable', 'string', 'max:190'],
-            'profiles' => ['array'], 'profiles.*' => ['integer'],
             'users' => ['array'], 'users.*' => ['integer'],
             'expires_at' => ['nullable', 'date', 'after:now'],
             'secret' => ['required', 'string'],
@@ -110,7 +96,7 @@ class BlockController extends Controller
         $this->verifySecret($request, $d['secret']);
         $this->validateTarget($d);
         [$profiles, $users] = $this->allowedSubjects($request);
-        $profileIds = array_values(array_intersect($d['profiles'] ?? [], $profiles->pluck('id')->all()));
+        $profileIds = [];
         $userIds = array_values(array_intersect($d['users'] ?? [], collect($users)->pluck('id')->all()));
         abort_if(! $profileIds && ! $userIds, 422, 'no subjects');
 
@@ -134,11 +120,9 @@ class BlockController extends Controller
         $this->guard($request);
         $d = $request->validate(['ids' => ['required', 'array'], 'ids.*' => ['integer'], 'secret' => ['required', 'string']]);
         $this->verifySecret($request, $d['secret']);
-        [$profiles] = $this->allowedSubjects($request);
         $q = AccessBlock::whereIn('id', $d['ids']);
         if (! $request->user()->is_admin) {
-            $q->where(fn ($w) => $w->where(fn ($a) => $a->where('subject_type', 'profile')->whereIn('subject_id', $profiles->pluck('id')))
-                ->orWhere(fn ($a) => $a->where('subject_type', 'user')->where('subject_id', $request->user()->id)));
+            $q->where(fn ($w) => $w->where('subject_type', '!=', 'user')->orWhere('subject_id', '!=', $request->user()->id));
         }
         $ids = $q->pluck('id')->all();
         AccessBlock::whereIn('id', $ids)->delete();
@@ -147,12 +131,11 @@ class BlockController extends Controller
         return back();
     }
 
-    /** Admin "view as": read-only browsing as another profile. */
-    public function viewAs(Request $request, Profile $profile)
+    /** "View as" another account (read-only) — "users" permission (route middleware). */
+    public function viewAs(Request $request, User $user)
     {
-        abort_unless($request->user()->is_admin && ! $this->ctx->current()?->is_kid, 403);
-        $request->session()->put('view_as', ['profile' => $profile->id, 'return' => $this->ctx->current()?->id]);
-        AuditLog::record('view_as.start', ['profile' => $profile->id]);
+        $request->session()->put('view_as', ['user' => $user->id]);
+        AuditLog::record('view_as.start', ['user' => $user->id]);
 
         return redirect('/home');
     }
@@ -161,17 +144,16 @@ class BlockController extends Controller
     {
         $va = $request->session()->pull('view_as');
         if ($va) {
-            AuditLog::record('view_as.end', ['profile' => $va['profile']]);
+            AuditLog::record('view_as.end', ['user' => $va['user'] ?? null]);
         }
 
-        return redirect('/admin/blocks');
+        return redirect('/admin/users');
     }
 
     private function verifySecret(Request $request, string $secret): void
     {
         $u = $request->user();
-        $ok = Hash::check($secret, $u->password) || ($u->parental_pin_hash && Hash::check($secret, $u->parental_pin_hash))
-            || (($p = $this->ctx->current()) && $p->pin_hash && Hash::check($secret, $p->pin_hash));
+        $ok = Hash::check($secret, $u->password);
         if (! $ok) {
             throw ValidationException::withMessages(['secret' => __('movexa.pin_invalid')]);
         }
@@ -212,7 +194,7 @@ class BlockController extends Controller
             'channel' => Channel::find($b->target_id)?->name,
             default => $b->target_value,
         };
-        $subject = $b->subject_type === 'profile' ? $profiles->firstWhere('id', $b->subject_id)?->name : collect($users)->firstWhere('id', $b->subject_id)['name'] ?? null;
+        $subject = $b->subject_type === 'profile' ? Profile::with('user')->find($b->subject_id)?->user?->name : collect($users)->firstWhere('id', $b->subject_id)?->name ?? User::find($b->subject_id)?->name;
 
         return ['id' => $b->id, 'target_type' => $b->target_type, 'target' => $label ?? '#'.$b->target_id, 'subject_type' => $b->subject_type, 'subject' => $subject ?? '#'.$b->subject_id,
             'subject_id' => $b->subject_id, 'expires_at' => $b->expires_at?->toIso8601String(), 'active' => ! $b->expires_at || $b->expires_at->isFuture(), 'created_at' => $b->created_at->toIso8601String()];

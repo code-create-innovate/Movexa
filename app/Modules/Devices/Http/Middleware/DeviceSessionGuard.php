@@ -19,7 +19,7 @@ class DeviceSessionGuard
             if ($device && $device->user_id !== $user->id) {
                 $device = null; // session switched account → register a device for the new user
             }
-            if ($device && $device->revoked_at) {
+            if (($device && $device->revoked_at) || $user->disabled_at) {
                 Auth::guard('web')->logout();
                 $request->session()->invalidate();
 

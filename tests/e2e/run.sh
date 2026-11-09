@@ -12,11 +12,12 @@ touch "$DB_DATABASE"
 IDS=$(php tests/e2e/seed.php | tail -1)
 ITEM=$(echo "$IDS" | sed -E 's/.*"item":([0-9]+).*/\1/')
 rm -f public/hot
-php artisan serve --host=127.0.0.1 --port=8765 > "$WORK/server.log" 2>&1 &
+for i in $(seq 1 20); do ss -ltn | grep -q ":8765 " || break; sleep 0.5; done
+php artisan serve --no-reload --host=127.0.0.1 --port=8765 > "$WORK/server.log" 2>&1 &
 SERVER=$!
 trap 'kill $SERVER 2>/dev/null || true' EXIT
 for i in $(seq 1 30); do curl -sf http://127.0.0.1:8765/up >/dev/null && break; sleep 0.5; done
 FILE=$(echo "$IDS" | sed -E 's/.*"file":([0-9]+).*/\1/')
 BASE=http://127.0.0.1:8765 ITEM=$ITEM SHOTS=${SHOTS:-$WORK} node tests/e2e/player.e2e.mjs
 BASE=http://127.0.0.1:8765 FILE=$FILE node tests/e2e/devices.e2e.mjs
-for spec in tests/e2e/visuals.e2e.mjs; do [ -f "$spec" ] && BASE=http://127.0.0.1:8765 ITEM=$ITEM FILE=$FILE node "$spec"; done; true
+for spec in tests/e2e/visuals.e2e.mjs tests/e2e/accounts.e2e.mjs; do [ -f "$spec" ] && BASE=http://127.0.0.1:8765 ITEM=$ITEM FILE=$FILE node "$spec"; done; true

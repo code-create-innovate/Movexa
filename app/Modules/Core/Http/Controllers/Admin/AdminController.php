@@ -53,8 +53,6 @@ class AdminController extends Controller
             ]),
             'top' => DB::table('watch_history')->select('media_item_id', DB::raw('count(*) as plays'))->groupBy('media_item_id')->orderByDesc('plays')->limit(10)->get()
                 ->map(fn ($r) => ['title' => MediaItem::find($r->media_item_id)?->title, 'plays' => $r->plays]),
-            'libraries' => Library::withCount('items')->get(),
-            'users' => User::withCount('profiles')->get(['id', 'name', 'email', 'is_admin', 'is_emergency_admin', 'max_concurrent_streams', 'downloads_enabled', 'downloads_quota_mb', 'downloads_max']),
             'limits' => ['streams_per_user' => config('movexa.limits.streams_per_user'), 'max_transcodes' => config('movexa.transcode.max_concurrent')],
         ]);
     }
@@ -85,23 +83,81 @@ class AdminController extends Controller
         return back();
     }
 
+    // ---- Accounts & permissions ("users" permission) --------------------------------------------
+
+    public function users()
+    {
+        return Inertia::render('admin/users', [
+            'users' => User::orderBy('name')->get()->map(fn (User $u) => $u->only('id', 'name', 'username', 'email', 'is_admin', 'max_age_rating', 'allowed_library_ids',
+                'max_concurrent_streams', 'downloads_quota_mb', 'downloads_max') + ['permissions' => $u->permissions ?? User::DEFAULT_PERMISSIONS, 'disabled' => (bool) $u->disabled_at,
+                    'has_2fa' => $u->hasTwoFactor(), 'last_seen' => \App\Modules\Devices\Models\Device::where('user_id', $u->id)->max('last_seen_at')]),
+            'permissions' => User::PERMISSIONS,
+            'libraries' => Library::get(['id', 'name', 'type']),
+            'defaults' => ['streams_per_user' => config('movexa.limits.streams_per_user')],
+        ]);
+    }
+
     public function storeUser(Request $request)
     {
-        $d = $request->validate(['name' => ['required', 'max:120'], 'email' => ['required', 'email', 'unique:users,email'], 'password' => ['required', 'min:10'], 'is_admin' => ['boolean']]);
+        $d = $request->validate([
+            'name' => ['required', 'max:120'],
+            'username' => ['required', 'alpha_dash', 'min:2', 'max:60', 'unique:users,username'],
+            'email' => ['nullable', 'email', 'unique:users,email'],
+            'password' => ['required', 'min:8'],
+        ] + $this->permissionRules());
+        $d['email'] ??= $d['username'].'@movexa.local'; // email is optional for family accounts
         $user = User::create($d);
-        $user->profiles()->create(['name' => $user->name]);
+        \App\Modules\Core\Models\AuditLog::record('user.created', ['user' => $user->id, 'permissions' => $user->permissions]);
 
         return back();
     }
 
+    private function permissionRules(): array
+    {
+        return [
+            'is_admin' => ['boolean'],
+            'permissions' => ['array'], 'permissions.*' => ['in:'.implode(',', User::PERMISSIONS)],
+            'max_age_rating' => ['nullable', 'integer', 'in:0,7,12,13,16,18'],
+            'allowed_library_ids' => ['nullable', 'array'], 'allowed_library_ids.*' => ['integer', 'exists:libraries,id'],
+            'max_concurrent_streams' => ['nullable', 'integer', 'between:1,20'],
+            'downloads_quota_mb' => ['integer', 'between:100,1000000'], 'downloads_max' => ['integer', 'between:1,200'],
+        ];
+    }
+
     public function updateUser(Request $request, User $user)
     {
-        $data = $request->validate(['is_admin' => ['boolean'], 'max_concurrent_streams' => ['nullable', 'integer', 'between:1,20'],
-            'downloads_enabled' => ['boolean'], 'downloads_quota_mb' => ['integer', 'between:100,1000000'], 'downloads_max' => ['integer', 'between:1,200']]);
-        abort_if($user->id === $request->user()->id && array_key_exists('is_admin', $data) && ! $data['is_admin'], 422);
-        $user->forceFill($data)->save();
+        $data = $request->validate($this->permissionRules() + [
+            'name' => ['sometimes', 'max:120'],
+            'username' => ['sometimes', 'alpha_dash', 'min:2', 'max:60', 'unique:users,username,'.$user->id],
+            'password' => ['nullable', 'min:8'],
+            'disabled' => ['boolean'],
+        ]);
+        $me = $request->user();
+        // Nobody can lock themselves out: no removing own admin / "users" permission, no disabling own account.
+        if ($user->id === $me->id) {
+            abort_if(array_key_exists('is_admin', $data) && ! $data['is_admin'] && $me->is_admin, 422, 'cannot remove your own admin role');
+            abort_if(! empty($data['disabled']), 422, 'cannot disable your own account');
+            abort_if(isset($data['permissions']) && ! $me->is_admin && ! in_array('users', $data['permissions'], true), 422);
+        }
+        // Only admins can grant admin.
+        abort_if(array_key_exists('is_admin', $data) && ! $me->is_admin, 403);
+        if (array_key_exists('disabled', $data)) {
+            $user->disabled_at = $data['disabled'] ? now() : null;
+            unset($data['disabled']);
+        }
+        if (empty($data['password'])) {
+            unset($data['password']);
+        }
+        $user->fill($data)->save();
+        \App\Modules\Core\Models\AuditLog::record('user.updated', ['user' => $user->id, 'fields' => array_keys($data)]);
 
         return back();
+    }
+
+    /** Libraries + upload ("library" / "upload" permissions). */
+    public function library()
+    {
+        return Inertia::render('admin/library', ['libraries' => Library::withCount('items')->get()]);
     }
 
     // ---- Library corrections ------------------------------------------------------

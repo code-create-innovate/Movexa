@@ -19,7 +19,7 @@ class RealtimeResilienceTest extends TestCase
                 'options' => ['host' => '127.0.0.1', 'port' => 9, 'scheme' => 'http', 'useTLS' => false], 'client_options' => ['timeout' => 1]],
             'movexa.transcode.hwaccel' => 'none',
         ]);
-        $profile = $this->actingAsProfile(null, ['password' => 'pw-123456']);
+        $profile = $this->actingAsProfile(null, ['password' => 'pw-123456', 'is_admin' => true]);
         $file = MediaFixtures::readyMovie($this->dataRoot.'/library', ['age_rating' => 0], 'mkv-hevc-dts');
 
         // transcode runs synchronously here and broadcasts progress → must not fail
@@ -30,7 +30,7 @@ class RealtimeResilienceTest extends TestCase
         $this->postJson("/party/{$uuid}/state", ['action' => 'play', 'position' => 1])->assertOk();
         $this->postJson("/party/{$uuid}/messages", ['body' => 'hi'])->assertOk();
 
-        $other = $profile->user->profiles()->create(['name' => 'Other']);
-        $this->post('/blocks', ['target_type' => 'item', 'target_id' => $file->media_item_id, 'profiles' => [$other->id], 'secret' => 'pw-123456'])->assertRedirect();
+        $other = $this->account();
+        $this->post('/blocks', ['target_type' => 'item', 'target_id' => $file->media_item_id, 'users' => [$other->id], 'secret' => 'pw-123456'])->assertRedirect();
     }
 }

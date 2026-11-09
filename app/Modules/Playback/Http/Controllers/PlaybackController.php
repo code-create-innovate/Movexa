@@ -192,7 +192,7 @@ class PlaybackController extends Controller
     public function uploadSubtitle(Request $request, int $file, SubtitleSanitizer $sanitizer, VirusScanner $scanner)
     {
         $f = $this->file($request, $file);
-        abort_if($request->attributes->get('profile')->is_kid, 403);
+        abort_unless($request->user()->hasPermission('upload'), 403);
         $data = $request->validate(['subtitle' => ['required', 'file', 'max:5120'], 'language' => ['nullable', 'string', 'max:8'], 'label' => ['nullable', 'string', 'max:60']]);
         $upload = $data['subtitle'];
         $ext = strtolower($upload->getClientOriginalExtension());

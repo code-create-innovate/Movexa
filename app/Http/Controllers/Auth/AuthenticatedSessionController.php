@@ -43,7 +43,7 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('profiles.select', absolute: false));
+        return redirect()->intended(route('home', absolute: false));
     }
 
     /**

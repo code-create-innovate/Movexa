@@ -67,7 +67,7 @@ class DeviceLoginController extends Controller
         $request->session()->put('device_id', $device->id);
         AuditLog::record('device.login', ['device' => $device->id, 'name' => $login->device_name], $login->user_id);
 
-        return ['status' => 'approved', 'redirect' => '/profiles'];
+        return ['status' => 'approved', 'redirect' => '/home'];
     }
 
     /** Phone side. */
@@ -86,7 +86,7 @@ class DeviceLoginController extends Controller
 
     public function approve(Request $request, ProfileContext $ctx)
     {
-        abort_if($ctx->current()?->is_kid || $ctx->viewingAs(), 403);
+        abort_if($ctx->viewingAs(), 403);
         $login = DeviceLogin::where('code', strtoupper((string) $request->input('code')))->first();
         abort_unless($login && $login->status === 'pending' && $login->expires_at->isFuture(), 404);
         $login->update(['status' => 'approved', 'user_id' => $request->user()->id]);

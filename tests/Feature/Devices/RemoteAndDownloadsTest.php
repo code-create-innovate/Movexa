@@ -65,11 +65,11 @@ class RemoteAndDownloadsTest extends TestCase
     public function test_downloads_are_policy_checked_synced_and_revoked(): void
     {
         config(['movexa.transcode.hwaccel' => 'none']);
-        $profile = $this->actingAsProfile(null, ['downloads_enabled' => false]);
+        $profile = $this->actingAsProfile(null, ['permissions' => ['live']]);
         $file = MediaFixtures::readyMovie($this->dataRoot.'/library', ['age_rating' => 13]);
         $this->postJson('/downloads', ['file_id' => $file->id, 'quality' => 480])->assertForbidden(); // not enabled by admin
 
-        $profile->user->update(['downloads_enabled' => true, 'downloads_max' => 1]);
+        $profile->user->update(['permissions' => ['download'], 'downloads_max' => 1]);
         $r = $this->postJson('/downloads', ['file_id' => $file->id, 'quality' => 480])->assertCreated(); // job runs (sync queue)
         $dl = Download::where('uuid', $r['uuid'])->first();
         $this->assertSame('ready', $dl->status);
@@ -83,15 +83,15 @@ class RemoteAndDownloadsTest extends TestCase
         $this->postJson('/downloads/sync', ['items' => [['uuid' => $dl->uuid, 'position' => 2.5]]])->assertJsonPath("items.{$dl->uuid}.action", 'keep');
         $this->assertEqualsWithDelta(2.5, WatchProgress::where('profile_id', $profile->id)->value('position'), 0.01);
 
-        // Kid profile of the same account can't download 13+ content.
-        $kid = $profile->user->profiles()->create(['name' => 'Kid', 'is_kid' => true, 'max_age_rating' => 7]);
-        $this->withSession([ProfileContext::SESSION_KEY => $kid->id]);
+        // A child account (age limit 7, download allowed) can't download 13+ content nor use someone else's copy.
+        $kid = $this->account(['max_age_rating' => 7, 'permissions' => ['download']])->primaryProfile();
+        $this->actingAs($kid->user);
         $this->postJson('/downloads', ['file_id' => $file->id, 'quality' => 480])->assertNotFound();
-        $this->get(app(MediaSigner::class)->url('dl', $dl->id, $profile->user_id, $kid->id, 'video.mp4'))->assertNotFound();
+        $this->get(app(MediaSigner::class)->url('dl', $dl->id, $kid->user_id, $kid->id, 'video.mp4'))->assertNotFound();
 
         // A block makes the device delete it on next contact.
-        $this->withSession([ProfileContext::SESSION_KEY => $profile->id]);
-        AccessBlock::create(['target_type' => 'item', 'target_id' => $file->media_item_id, 'subject_type' => 'profile', 'subject_id' => $profile->id]);
+        $this->actingAs($profile->user);
+        AccessBlock::create(['target_type' => 'item', 'target_id' => $file->media_item_id, 'subject_type' => 'user', 'subject_id' => $profile->user_id]);
         $this->postJson('/downloads/sync', ['items' => [['uuid' => $dl->uuid]]])->assertJsonPath("items.{$dl->uuid}.action", 'delete');
         $this->assertSame('revoked', $dl->fresh()->status);
         $this->assertFileDoesNotExist($dl->output_path);
@@ -100,7 +100,7 @@ class RemoteAndDownloadsTest extends TestCase
     public function test_download_expiry(): void
     {
         config(['movexa.transcode.hwaccel' => 'none', 'movexa.downloads.ttl_days' => 30]);
-        $profile = $this->actingAsProfile(null, ['downloads_enabled' => true]);
+        $profile = $this->actingAsProfile(null, ['permissions' => ['download']]);
         $file = MediaFixtures::readyMovie($this->dataRoot.'/library', ['age_rating' => 0]);
         $uuid = $this->postJson('/downloads', ['file_id' => $file->id, 'quality' => 480])->json('uuid');
         $this->travel(31)->days();

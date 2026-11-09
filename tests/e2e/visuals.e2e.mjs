@@ -19,10 +19,9 @@ async function signIn(ctx, { expectIntro = true } = {}) {
     await p.goto(`${BASE}/login`);
     await p.waitForLoadState('networkidle');
     if (protectedReqs.length || (await p.locator('img[src*="/m/"]').count())) fail('login page requested a protected image');
-    await p.fill('#email', 'admin@e2e.lan');
+    await p.fill('#email', 'admin');
     await p.fill('#password', 'password-e2e');
-    await Promise.all([p.waitForURL('**/profiles'), p.click('button[type=submit]')]);
-    await Promise.all([p.waitForURL('**/home'), p.click('button[aria-label="Othman"]')]);
+    await Promise.all([p.waitForURL('**/home'), p.click('button[type=submit]')]); // no profile picker: straight home
     return p;
 }
 const xsrf = `decodeURIComponent(document.cookie.split('; ').find((c) => c.startsWith('XSRF-TOKEN=')).split('=')[1])`;
@@ -36,7 +35,7 @@ try {
     await page.getByTestId('intro').waitFor({ timeout: 3000 });
     await page.keyboard.press('Space');
     await page.getByTestId('intro').waitFor({ state: 'detached', timeout: 2000 });
-    step('intro shown after choosing the profile and skipped with a key');
+    step('intro shown after signing in and skipped with a key');
     await page.goto(`${BASE}/search`);
     await page.goto(`${BASE}/home`);
     await page.waitForTimeout(500);

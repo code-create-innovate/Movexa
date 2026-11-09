@@ -43,22 +43,6 @@ class Discovery
             ->map(fn ($i) => ['src' => $this->signer->url('img', $i->id, auth()->id() ?? $profile->user_id, $profile->id, 'poster_small'), 'color' => $i->dominant_color])->all();
     }
 
-    /** Before a profile is chosen: only "all ages" titles, minus anything blocked for the whole account. */
-    public function wallBeforeProfile(int $userId): array
-    {
-        return MediaItem::visibleTo(self::accountProfile($userId))->where('age_rating', 0)->whereNotNull('poster_path')->inRandomOrder()->limit(40)->get()
-            ->map(fn ($i) => ['src' => $this->signer->url('img', $i->id, $userId, null, 'poster_small'), 'color' => $i->dominant_color])->all();
-    }
-
-    /** A transient, non-kid "profile" that carries only the account-level blocks (profile id 0 matches no profile block). */
-    public static function accountProfile(int $userId): Profile
-    {
-        $p = new Profile(['name' => 'account']);
-        $p->id = 0;
-        $p->user_id = $userId;
-
-        return $p;
-    }
 
     /** Most-watched in the last N days (counted views only), aggregated, per type. Hidden below 5 titles. */
     public function top10(Profile $profile, string $type): array

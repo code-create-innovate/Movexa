@@ -43,7 +43,7 @@ class IntegrationApiTest extends TestCase
     public function test_homecore_continue_watching_and_search(): void
     {
         $user = User::factory()->create(['oidc_subject' => 'hc-42']);
-        $profile = $user->profiles()->create(['name' => 'Me']);
+        $profile = $user->primaryProfile();
         $file = MediaFixtures::readyMovie($this->dataRoot.'/library', ['title' => 'Dune', 'title_ar' => 'كثيب', 'age_rating' => 13]);
         WatchProgress::create(['profile_id' => $profile->id, 'media_file_id' => $file->id, 'media_item_id' => $file->media_item_id, 'position' => 120, 'duration' => 600]);
         [, $token] = ApiToken::issue('homecore', ['homecore:read']);

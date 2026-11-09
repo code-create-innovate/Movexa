@@ -14,8 +14,8 @@ Artisan::call('migrate:fresh', ['--force' => true]);
 foreach (['inbox', 'library', 'quarantine', 'cache', 'images', 'uploads'] as $d) {
     @mkdir(config('movexa.paths.'.$d), 0755, true);
 }
-$user = User::create(['name' => 'Admin', 'email' => 'admin@e2e.lan', 'password' => 'password-e2e', 'is_admin' => true, 'downloads_enabled' => true]);
-$user->profiles()->create(['name' => 'Othman', 'avatar_color' => '#2563eb']);
+$user = User::create(['name' => 'Othman', 'username' => 'admin', 'email' => 'admin@e2e.lan', 'password' => 'password-e2e', 'is_admin' => true]);
+User::create(['name' => 'Yousef', 'username' => 'yousef', 'email' => 'yousef@e2e.lan', 'password' => 'password-e2e', 'permissions' => ['party'], 'max_age_rating' => 7]);
 
 $file = MediaFixtures::readyMovie(config('movexa.paths.library'), ['title' => 'Test Movie', 'title_ar' => 'فيلم تجريبي', 'year' => 2024, 'age_rating' => 0, 'overview_ar' => 'فيلم للاختبار.'], 'mp4');
 // make it longer for seeking

@@ -72,14 +72,13 @@ class OidcController extends Controller
                 'password' => Str::random(48),
                 'is_admin' => in_array('movexa-admin', (array) ($info['groups'] ?? []), true),
             ]);
-            $user->profiles()->create(['name' => $user->name]);
         }
         $user->forceFill(['oidc_subject' => $claims['sub']])->save();
 
         Auth::login($user, true);
         $request->session()->regenerate();
 
-        return redirect()->route('profiles.select');
+        return redirect()->route('home');
     }
 
     private function discovery(): ?array

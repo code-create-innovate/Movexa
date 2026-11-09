@@ -89,9 +89,10 @@ class MediaAccessTest extends TestCase
     public function test_token_bound_to_profile(): void
     {
         [$profile, $file] = $this->setupFile();
-        $second = $profile->user->profiles()->create(['name' => 'Other']);
-        $url = app(MediaSigner::class)->url('file', $file->id, $profile->user_id, $profile->id, 'x.mp4');
-        $this->withSession([ProfileContext::SESSION_KEY => $second->id])->get($url)->assertForbidden();
+        $other = User::factory()->create()->primaryProfile();
+        // right user, but a profile claim that isn't this account's → refused
+        $url = app(MediaSigner::class)->url('file', $file->id, $profile->user_id, $other->id, 'x.mp4');
+        $this->get($url)->assertForbidden();
     }
 
     public function test_path_traversal_is_impossible(): void

@@ -6,7 +6,6 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Hash;
 
 class Profile extends Model
 {
@@ -15,8 +14,6 @@ class Profile extends Model
     protected $fillable = ['name', 'avatar_color', 'is_kid', 'max_age_rating', 'locale', 'subtitle_prefs', 'preferred_audio_lang', 'preferred_subtitle_lang', 'settings'];
 
     protected $hidden = ['pin_hash'];
-
-    protected $appends = ['has_pin'];
 
     protected function casts(): array
     {
@@ -33,20 +30,6 @@ class Profile extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function getHasPinAttribute(): bool
-    {
-        return $this->pin_hash !== null;
-    }
-
-    public function setPin(?string $pin): void
-    {
-        $this->pin_hash = $pin === null || $pin === '' ? null : Hash::make($pin);
-    }
-
-    public function checkPin(?string $pin): bool
-    {
-        return $this->pin_hash === null || ($pin !== null && Hash::check($pin, $this->pin_hash));
-    }
 
     public const DEFAULT_SETTINGS = ['intro' => true, 'pause_screen' => true, 'ambient' => 'soft', 'poster_wall' => true, 'recap' => true];
 
@@ -60,10 +43,16 @@ class Profile extends Model
         return array_merge(self::DEFAULT_SETTINGS, $this->settings ?? []);
     }
 
-    /** Effective max age rating, or null for unrestricted profiles. */
+    /** Effective max age rating (set by an admin on the account), or null when unrestricted. */
     public function ageLimit(): ?int
     {
-        return $this->is_kid ? ($this->max_age_rating ?? 7) : null;
+        return $this->user?->max_age_rating;
+    }
+
+    /** null = all libraries; otherwise the library ids the account may see. */
+    public function allowedLibraries(): ?array
+    {
+        return $this->user?->allowed_library_ids;
     }
 
     /** Kids see only content with a KNOWN rating within the limit. Unknown rating = hidden. */

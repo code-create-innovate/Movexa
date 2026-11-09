@@ -89,6 +89,9 @@ class AccessPolicy
         if (($limit = $profile->ageLimit()) !== null) {
             $q->whereNotNull('age_rating')->where('age_rating', '<=', $limit);
         }
+        if (($libs = $profile->allowedLibraries()) !== null) {
+            $q->whereIn($q->getModel()->getTable().'.library_id', $libs ?: [0]);
+        }
         if ($b['items']) {
             $q->whereNotIn($q->getModel()->getTable().'.id', array_keys($b['items']));
         }
@@ -103,7 +106,10 @@ class AccessPolicy
         }
         $b = $this->blocked($profile);
 
-        return ! $b['failed'] && ! isset($b['items'][$item->id]) && $profile->allowsRating($item->age_rating);
+        $libs = $profile->allowedLibraries();
+
+        return ! $b['failed'] && ! isset($b['items'][$item->id]) && $profile->allowsRating($item->age_rating)
+            && ($libs === null || in_array($item->library_id, $libs, true));
     }
 
     public function allowsEpisode(Profile $profile, ?Episode $episode): bool

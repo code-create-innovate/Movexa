@@ -59,6 +59,14 @@ const en: typeof ar = {
         ambient: 'Ambient light around the video', off: 'Off', soft: 'Soft', strong: 'Strong', endsAt: 'Ends at', remaining: 'left', recapTitle: 'Previously…', continue: 'Continue', skip: 'Skip',
         lastTime: 'Last time you watched', minutes: 'min',
     },
+    accounts: {
+        title: 'Users & permissions', add: 'Add user', name: 'Name', username: 'Username', email: 'Email (optional)', password: 'Password',
+        newPassword: 'New password', admin: 'Admin (all permissions)', disabled: 'Disabled', active: 'Active', ageLimit: 'Age limit', noLimit: 'No limit',
+        libraries: 'Allowed libraries', allLibraries: 'All libraries', streams: 'Concurrent streams', save: 'Save', viewAs: 'View as', twoFa: '2FA', lastSeen: 'Last active',
+        watching: 'Watching', managing: 'Managing', library: 'Library',
+        perms: { live: 'Live TV', download: 'Downloads', party: 'Watch party', upload: 'Upload files', library: 'Manage library', quarantine: 'Quarantine & security',
+            live_manage: 'Manage live sources', blocks: 'Custom blocking', stats: 'Statistics', users: 'Manage users' },
+    },
     twoFactor: { title: 'Two-factor authentication', enable: 'Enable', disable: 'Disable', enabled: 'Enabled', scan: 'Add this key to your authenticator app, then enter the code', code: 'Verification code', password: 'Password', verify: 'Verify' },
 };
 export default en;

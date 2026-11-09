@@ -2,10 +2,14 @@
 
 namespace App\Modules\Core\Services;
 
+use App\Models\User;
 use App\Modules\Core\Models\Profile;
 use Illuminate\Http\Request;
 
-/** Resolves the active profile from the session; always scoped to the authenticated user. */
+/**
+ * There is no profile picker any more: each person signs in with their own account and gets its single
+ * internal viewing profile. An admin with the "users" permission can "view as" another account (read-only).
+ */
 class ProfileContext
 {
     public const SESSION_KEY = 'movexa.profile_id';
@@ -15,33 +19,30 @@ class ProfileContext
     public function current(): ?Profile
     {
         $user = $this->request->user();
-        $id = $this->request->hasSession() ? $this->request->session()->get(self::SESSION_KEY) : null;
-        if (! $user || ! $id) {
+        if (! $user) {
             return null;
         }
-
-        // Admin "view as" (read-only): browse as any profile.
-        $va = $this->request->session()->get('view_as');
-        if ($va && $user->is_admin) {
-            return Profile::find($va['profile']);
+        $cached = $this->request->attributes->get('movexa.profile');
+        if ($cached instanceof Profile && $cached->user_id === ($this->viewAsUserId() ?? $user->id)) {
+            return $cached;
         }
+        $target = ($id = $this->viewAsUserId()) ? User::find($id) : $user;
+        $profile = $target?->primaryProfile();
+        $profile?->setRelation('user', $target);
+        $this->request->attributes->set('movexa.profile', $profile);
 
-        return $user->profiles()->whereKey($id)->first();
+        return $profile;
+    }
+
+    private function viewAsUserId(): ?int
+    {
+        $va = $this->request->hasSession() ? $this->request->session()->get('view_as') : null;
+
+        return $va && $this->request->user()?->hasPermission('users') ? (int) $va['user'] : null;
     }
 
     public function viewingAs(): bool
     {
-        return $this->request->hasSession() && $this->request->session()->has('view_as') && (bool) $this->request->user()?->is_admin;
-    }
-
-    public function set(Profile $profile): void
-    {
-        $this->request->session()->put(self::SESSION_KEY, $profile->id);
-        $this->request->session()->regenerate();
-    }
-
-    public function clear(): void
-    {
-        $this->request->session()->forget(self::SESSION_KEY);
+        return $this->viewAsUserId() !== null;
     }
 }

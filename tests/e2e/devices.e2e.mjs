@@ -15,10 +15,9 @@ async function login(ctx) {
     const p = await ctx.newPage();
     p.on('pageerror', (e) => console.log('  pageerror(phone):', e.message));
     await p.goto(`${BASE}/login`);
-    await p.fill('#email', 'admin@e2e.lan');
+    await p.fill('#email', 'admin');
     await p.fill('#password', 'password-e2e');
-    await Promise.all([p.waitForURL('**/profiles'), p.click('button[type=submit]')]);
-    await Promise.all([p.waitForURL('**/home'), p.click('button[aria-label="Othman"]')]);
+    await Promise.all([p.waitForURL('**/home'), p.click('button[type=submit]')]); // no profile picker: straight home
     return p;
 }
 const xsrf = `decodeURIComponent(document.cookie.split('; ').find((c) => c.startsWith('XSRF-TOKEN=')).split('=')[1])`;
@@ -44,9 +43,8 @@ try {
     await phone.getByText('TV').first().waitFor();
     await phone.getByRole('button', { name: 'موافقة' }).click();
     await phone.getByText('تمت الموافقة').waitFor();
-    await tv.waitForURL('**/profiles', { timeout: 15000 });
-    step('phone approved → TV on profile picker');
-    await Promise.all([tv.waitForURL('**/home'), tv.click('button[aria-label="Othman"]')]);
+    await tv.waitForURL('**/home', { timeout: 15000 });
+    step('phone approved → TV signed in to that account');
     await phone.goto(`${BASE}/devices`);
     await phone.getByText('TV').first().waitFor();
     step('TV listed in "my devices"');

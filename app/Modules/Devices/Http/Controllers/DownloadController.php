@@ -33,7 +33,7 @@ class DownloadController extends Controller
         $profile = $request->attributes->get('profile');
 
         return Inertia::render('devices/downloads', [
-            'enabled' => (bool) $user->downloads_enabled,
+            'enabled' => $user->hasPermission('download'),
             'quota' => ['max' => $user->downloads_max, 'mb' => $user->downloads_quota_mb] + $this->usage($user->id),
             'downloads' => Download::with('file.item', 'file.episode.season')->where('profile_id', $profile->id)->whereNotIn('status', ['revoked'])->latest()->get()
                 ->filter(fn ($d) => $d->file && $d->file->viewableBy($profile))
@@ -45,7 +45,7 @@ class DownloadController extends Controller
     {
         $user = $request->user();
         $profile = $request->attributes->get('profile');
-        abort_unless($user->downloads_enabled, 403, 'downloads disabled');
+        abort_unless($user->hasPermission('download'), 403, 'downloads disabled');
         $d = $request->validate(['file_id' => ['required', 'integer'], 'quality' => ['required', 'in:480,720'], 'audio_index' => ['nullable', 'integer', 'min:0'], 'subtitle_ids' => ['array'], 'subtitle_ids.*' => ['integer']]);
         $file = MediaFile::with('item', 'episode', 'subtitles')->find($d['file_id']);
         abort_unless($file && $file->viewableBy($profile), 404);
@@ -92,7 +92,7 @@ class DownloadController extends Controller
         $out = [];
         foreach ($items as $it) {
             $dl = Download::with('file.item', 'file.episode')->where('uuid', $it['uuid'])->where('user_id', $user->id)->first();
-            $allowed = $dl && $user->downloads_enabled && $dl->status === 'ready' && $dl->expires_at->isFuture()
+            $allowed = $dl && $user->hasPermission('download') && $dl->status === 'ready' && $dl->expires_at->isFuture()
                 && $dl->file && $dl->file->viewableBy($dl->profile_id === $profile->id ? $profile : \App\Modules\Core\Models\Profile::find($dl->profile_id));
             if (! $allowed) {
                 $dl?->update(['status' => 'revoked']);

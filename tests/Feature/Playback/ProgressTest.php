@@ -31,9 +31,8 @@ class ProgressTest extends TestCase
         $this->assertEqualsWithDelta(2.5, $again['position'], 0.01);
         $this->assertNotSame($start['session'], $again['session']);
 
-        // A second profile has its own progress.
-        $other = $profile->user->profiles()->create(['name' => 'Other']);
-        $this->withSession([ProfileContext::SESSION_KEY => $other->id]);
+        // Another person (own account) has their own progress.
+        $this->actingAs($this->account());
         $this->postJson("/playback/{$file->id}/start", ['caps' => $this->chrome])->assertJson(['position' => 0]);
     }
 
@@ -71,8 +70,7 @@ class ProgressTest extends TestCase
         $this->postJson("/party/{$uuid}/state", ['action' => 'play', 'position' => 1.5])->assertJson(['playing' => true]);
         $this->postJson("/party/{$uuid}/messages", ['body' => '<b>hi</b> there'])->assertJson(['body' => 'hi there']);
 
-        $second = $profile->user->profiles()->create(['name' => 'Guest']);
-        $this->withSession([ProfileContext::SESSION_KEY => $second->id]);
+        $this->actingAs($this->account()); // a second family member joins the party
         $state = $this->getJson("/party/{$uuid}/state")->assertOk();
         $this->assertTrue($state['playing']);
         $this->assertGreaterThanOrEqual(1.5, $state['position']);

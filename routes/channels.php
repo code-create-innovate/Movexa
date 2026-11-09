@@ -5,7 +5,7 @@ use App\Modules\Playback\Models\WatchParty;
 use Illuminate\Support\Facades\Broadcast;
 
 // Per-profile control channel (access revoked → stop playback). Only the logged-in owner of that profile.
-Broadcast::channel('profile.{id}', fn ($user, int $id) => $user->profiles()->whereKey($id)->exists());
+Broadcast::channel('profile.{id}', fn ($user, int $id) => $user->primaryProfile()->id === $id);
 
 Broadcast::channel('remote.{uuid}', fn ($user, string $uuid) => \App\Modules\Devices\Models\RemoteDevice::where('uuid', $uuid)->where('user_id', $user->id)->exists());
 

@@ -20,14 +20,11 @@ try {
     const blocked = await page.evaluate(() => fetch('/m/x.y/stream.mp4', { redirect: 'manual' }).then((r) => r.status));
     if (blocked !== 403) fail(`media without session returned ${blocked}`);
     step(`media without session → ${blocked}`);
-    await page.fill('#email', 'admin@e2e.lan');
+    await page.fill('#email', 'admin');
     await page.fill('#password', 'password-e2e');
-    await Promise.all([page.waitForURL('**/profiles'), page.click('button[type=submit]')]);
-    step('login');
-
-    await Promise.all([page.waitForURL('**/home'), page.click('button[aria-label="Othman"]')]);
+    await Promise.all([page.waitForURL('**/home'), page.click('button[type=submit]')]);
     if ((await page.getAttribute('html', 'dir')) !== 'rtl') fail('default direction should be RTL');
-    step('profile selected, UI is RTL');
+    step('login with username → straight to home (no profile picker), UI is RTL');
     await page.screenshot({ path: `${SHOTS}/e2e-home.png` });
 
     await page.goto(`${BASE}/title/${ITEM}`);

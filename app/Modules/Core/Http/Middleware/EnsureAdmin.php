@@ -2,18 +2,20 @@
 
 namespace App\Modules\Core\Http\Middleware;
 
-use App\Modules\Core\Services\ProfileContext;
 use Closure;
 use Illuminate\Http\Request;
 
+/**
+ * Per-user permissions: ->middleware('perm:library') or 'perm:library,upload' (any of them).
+ * Disabled accounts have no permission at all.
+ */
 class EnsureAdmin
 {
-    public function __construct(private ProfileContext $profiles) {}
-
-    public function handle(Request $request, Closure $next)
+    public function handle(Request $request, Closure $next, string ...$permissions)
     {
-        // Admin pages are never reachable from a kid profile, even on an admin account.
-        abort_unless($request->user()?->is_admin && ! $this->profiles->current()?->is_kid, 403);
+        $user = $request->user();
+        $permissions = $permissions ?: ['users'];
+        abort_unless($user && collect($permissions)->contains(fn ($p) => $user->hasPermission($p)), 403);
 
         return $next($request);
     }

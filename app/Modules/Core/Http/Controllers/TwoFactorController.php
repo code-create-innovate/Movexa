@@ -79,6 +79,6 @@ class TwoFactorController extends Controller
         $request->session()->forget('2fa.user_id');
         $request->session()->regenerate();
 
-        return redirect()->intended(route('profiles.select'));
+        return redirect()->intended(route('home'));
     }
 }

@@ -24,7 +24,7 @@ type Item = Card & { overview: string | null; original_title: string | null; cer
 
 export default function Title({ item, file, seasons }: { item: Item; file: FileInfo | null; seasons: { id: number; number: number; episodes: Episode[] }[] }) {
     const { t } = useT();
-    const { profile, viewAs, auth } = usePage<SharedData>().props;
+    const { viewAs, auth } = usePage<SharedData>().props;
     useEffect(() => setTint(item.color), [item.color]);
     const first = file ?? seasons[0]?.episodes[0]?.file ?? null;
     const resumeEp = seasons.flatMap((s) => s.episodes).find((e) => e.file.progress && !e.file.progress.completed);
@@ -59,11 +59,11 @@ export default function Title({ item, file, seasons }: { item: Item; file: FileI
                             <Button size="lg" variant="secondary" onClick={() => router.post(`/title/${item.id}/list`, {}, { preserveScroll: true })}>
                                 {item.in_list ? <Check /> : <Plus />} {item.in_list ? t.inList : t.addToList}
                             </Button>
-                            {target && (
+                            {target && auth.user?.can.party && !viewAs && (
                                 <Button size="lg" variant="outline" onClick={() => router.post(`/party/${target.id}`)}><Users /> {t.watchParty}</Button>
                             )}
-                            {target && auth.user?.downloads_enabled && !viewAs && <DownloadDialog file={target} />}
-                            {!profile?.is_kid && !viewAs && (
+                            {target && auth.user?.can.download && !viewAs && <DownloadDialog file={target} />}
+                            {auth.user?.can.blocks && !viewAs && (
                                 <BlockDialog targets={[
                                     { type: 'item', id: item.id, label: `${t.blocks.thisTitle}: ${item.title}` },
                                     ...seasons.map((s) => ({ type: 'season', id: s.id, label: `${t.blocks.thisSeason}: ${t.season} ${s.number}` })),

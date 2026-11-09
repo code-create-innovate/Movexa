@@ -23,7 +23,7 @@ class HomeCoreController extends Controller
             return ['items' => []];
         }
         // HomeCore has no Movexa profile; use the user's first NON-kid profile.
-        $profile = $user->profiles()->where('is_kid', false)->orderBy('id')->first();
+        $profile = $user->disabled_at ? null : $user->primaryProfile();
         if (! $profile) {
             return ['items' => []];
         }
@@ -77,7 +77,7 @@ class HomeCoreController extends Controller
     {
         $user = $sub !== '' ? User::where('oidc_subject', $sub)->first() : null;
 
-        return $user?->profiles()->where('is_kid', false)->orderBy('id')->first();
+        return $user && ! $user->disabled_at ? $user->primaryProfile() : null;
     }
 
     public function search(Request $request)

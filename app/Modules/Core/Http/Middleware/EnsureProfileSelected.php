@@ -6,6 +6,7 @@ use App\Modules\Core\Services\ProfileContext;
 use Closure;
 use Illuminate\Http\Request;
 
+/** Puts the account's viewing profile on the request (kept under the old "profile" alias). */
 class EnsureProfileSelected
 {
     public function __construct(private ProfileContext $profiles) {}
@@ -13,13 +14,7 @@ class EnsureProfileSelected
     public function handle(Request $request, Closure $next)
     {
         $profile = $this->profiles->current();
-        if (! $profile) {
-            if ($request->expectsJson()) {
-                return response()->json(['message' => 'profile_required'], 409);
-            }
-
-            return redirect()->route('profiles.select');
-        }
+        abort_unless($profile, 403);
         $request->attributes->set('profile', $profile);
 
         return $next($request);

@@ -1,5 +1,5 @@
 import { router } from '@inertiajs/react';
-import { Eye, Trash2, TriangleAlert } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { BlockDialog, type BlockTarget } from '@/components/movexa/block-dialog';
 import { Button } from '@/components/ui/button';
@@ -10,12 +10,11 @@ import { useT } from '@/lib/i18n';
 
 type Block = { id: number; target_type: string; target: string; subject_type: string; subject: string; subject_id: number; expires_at: string | null; active: boolean };
 type Props = {
-    blocks: Block[]; profiles: { id: number; name: string; account: string; has_pin: boolean }[]; users: { id: number; name: string }[];
-    warning_no_pin: boolean; isAdmin: boolean; audit: { id: number; action: string; details: unknown; created_at: string }[];
+    blocks: Block[]; users: { id: number; name: string }[]; isAdmin: boolean; canViewAs: boolean; audit: { id: number; action: string; details: unknown; created_at: string }[];
     targets: { genres: string[]; tags: string[]; libraries: { id: number; name: string }[]; collections: { id: number; name: string }[]; categories: string[] };
 };
 
-export default function Blocks({ blocks, profiles, warning_no_pin, isAdmin, audit, targets }: Props) {
+export default function Blocks({ blocks, isAdmin, audit, targets }: Props) {
     const { t, locale } = useT();
     const [sel, setSel] = useState<number[]>([]);
     const [secret, setSecret] = useState('');
@@ -48,7 +47,6 @@ export default function Blocks({ blocks, profiles, warning_no_pin, isAdmin, audi
                     <h1 className="text-2xl font-bold">{t.blocks.title}</h1>
                     {generic.length > 0 && <div className="ms-auto"><BlockDialog targets={generic} /></div>}
                 </div>
-                {warning_no_pin && <p className="flex gap-2 rounded-md bg-amber-500/10 p-3 text-sm text-amber-300"><TriangleAlert className="size-5 shrink-0" /> {t.blocks.noPinWarning}</p>}
                 {blocks.length === 0 ? <p className="text-muted-foreground">{t.blocks.empty}</p> : (
                     <Tabs defaultValue="person">
                         <TabsList><TabsTrigger value="person">{t.blocks.byPerson}</TabsTrigger><TabsTrigger value="content">{t.blocks.byContent}</TabsTrigger></TabsList>
@@ -63,14 +61,6 @@ export default function Blocks({ blocks, profiles, warning_no_pin, isAdmin, audi
                             <Trash2 /> {t.blocks.removeSelected} ({sel.length})
                         </Button>
                     </div>
-                )}
-                {isAdmin && (
-                    <section className="rounded-lg border bg-card p-3">
-                        <h2 className="mb-2 font-semibold">{t.blocks.viewAs}</h2>
-                        <div className="flex flex-wrap gap-2">
-                            {profiles.map((p) => <Button key={p.id} size="sm" variant="secondary" onClick={() => router.post(`/view-as/${p.id}`)}><Eye /> <span dir="auto">{p.name} ({p.account})</span></Button>)}
-                        </div>
-                    </section>
                 )}
                 {isAdmin && audit.length > 0 && (
                     <section className="rounded-lg border bg-card p-3 text-xs">

@@ -30,21 +30,18 @@ class DeviceLoginTest extends TestCase
 
         // Phone (logged in) sees the device name + code, then approves explicitly.
         $user = User::factory()->create();
-        $adult = $user->profiles()->create(['name' => 'Dad']);
-        $locked = $user->profiles()->make(['name' => 'Locked']);
-        $locked->setPin('1234');
-        $locked->save();
-        $this->actingAs($user)->withSession([ProfileContext::SESSION_KEY => $adult->id]);
+        $user->update(['max_age_rating' => 13]);
+        $this->actingAs($user);
         $this->getJson('/device-login/lookup?code='.$tv['code'])->assertOk()->assertJson(['device_name' => 'Living room TV']);
         $this->postJson('/device-login/approve', ['code' => $tv['code']])->assertOk();
 
-        // TV polls → logged in, lands on the profile picker; PINs still required.
+        // TV polls → signed in to the approving account (its age limit / permissions apply as usual).
         auth()->logout();
         $this->flushSession();
-        $this->postJson('/device-login/poll', ['poll_token' => $tv['poll_token']])->assertOk()->assertJson(['redirect' => '/profiles']);
+        $this->postJson('/device-login/poll', ['poll_token' => $tv['poll_token']])->assertOk()->assertJson(['redirect' => '/home']);
         $this->assertAuthenticatedAs($user);
-        $this->get('/home')->assertRedirect('/profiles');
-        $this->post("/profiles/{$locked->id}/enter", ['pin' => ''])->assertSessionHasErrors('pin');
+        $this->get('/home')->assertOk();
+        $this->assertSame(13, auth()->user()->max_age_rating);
         $this->assertSame('tv', Device::where('user_id', $user->id)->latest('id')->first()->kind);
 
         // Single use: the same token / code cannot be used again.
@@ -59,8 +56,7 @@ class DeviceLoginTest extends TestCase
         $tv = $this->tvStart();
         $this->travel(301)->seconds();
         $user = User::factory()->create();
-        $p = $user->profiles()->create(['name' => 'A']);
-        $this->actingAs($user)->withSession([ProfileContext::SESSION_KEY => $p->id]);
+        $this->actingAs($user);
         $this->getJson('/device-login/lookup?code='.$tv['code'])->assertNotFound();
         $this->postJson('/device-login/approve', ['code' => $tv['code']])->assertNotFound();
         auth()->logout();
@@ -68,15 +64,16 @@ class DeviceLoginTest extends TestCase
         $this->assertGuest();
     }
 
-    public function test_kid_profile_cannot_approve_and_guessing_is_rate_limited(): void
+    public function test_view_as_cannot_approve_and_guessing_is_rate_limited(): void
     {
         $tv = $this->tvStart();
-        $user = User::factory()->create();
-        $kid = $user->profiles()->create(['name' => 'Kid', 'is_kid' => true]);
-        $this->actingAs($user)->withSession([ProfileContext::SESSION_KEY => $kid->id]);
+        $admin = User::factory()->create(['is_admin' => true]);
+        $other = User::factory()->create();
+        $this->actingAs($admin)->withSession(['view_as' => ['user' => $other->id]]);
         $this->postJson('/device-login/approve', ['code' => $tv['code']])->assertForbidden();
-        $adult = $user->profiles()->create(['name' => 'A']);
-        $this->withSession([ProfileContext::SESSION_KEY => $adult->id]);
+        $this->flushSession();
+        $user = User::factory()->create();
+        $this->actingAs($user);
         for ($i = 0; $i < 10; $i++) {
             $this->getJson('/device-login/lookup?code=AAAAAA');
         }
@@ -86,8 +83,7 @@ class DeviceLoginTest extends TestCase
     public function test_revoking_a_device_logs_it_out(): void
     {
         $user = User::factory()->create();
-        $p = $user->profiles()->create(['name' => 'A']);
-        $this->actingAs($user)->withSession([ProfileContext::SESSION_KEY => $p->id]);
+        $this->actingAs($user);
         $this->get('/home')->assertOk();
         $device = Device::where('user_id', $user->id)->firstOrFail();
         $device->update(['revoked_at' => now()]);

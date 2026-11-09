@@ -52,12 +52,11 @@ class RegisteredUserController extends Controller
         ]);
         // The very first account becomes the (local, HomeCore-independent) admin.
         $user->forceFill(['is_admin' => $first, 'is_emergency_admin' => $first])->save();
-        $user->profiles()->create(['name' => $user->name]);
 
         event(new Registered($user));
 
         Auth::login($user);
 
-        return to_route('profiles.select');
+        return to_route('home');
     }
 }

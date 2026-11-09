@@ -57,5 +57,13 @@ export default {
         ambient: 'إضاءة حول الفيديو', off: 'إيقاف', soft: 'خفيف', strong: 'قوي', endsAt: 'ينتهي الساعة', remaining: 'متبقٍ', recapTitle: 'وين وقفنا؟', continue: 'كمّل', skip: 'تخطَّ',
         lastTime: 'آخر مرة شاهدت', minutes: 'دقيقة',
     },
+    accounts: {
+        title: 'المستخدمون والصلاحيات', add: 'إضافة مستخدم', name: 'الاسم', username: 'اسم المستخدم', email: 'البريد (اختياري)', password: 'كلمة المرور',
+        newPassword: 'كلمة مرور جديدة', admin: 'مسؤول (كل الصلاحيات)', disabled: 'موقوف', active: 'نشط', ageLimit: 'حد العمر', noLimit: 'بدون حد',
+        libraries: 'المكتبات المسموحة', allLibraries: 'كل المكتبات', streams: 'بثوث متزامنة', save: 'حفظ', viewAs: 'عرض كـ', twoFa: '2FA', lastSeen: 'آخر نشاط',
+        watching: 'المشاهدة', managing: 'الإدارة', library: 'المكتبة',
+        perms: { live: 'البث المباشر', download: 'التنزيل', party: 'المشاهدة الجماعية', upload: 'رفع الملفات', library: 'إدارة المكتبة', quarantine: 'الحجر والأمان',
+            live_manage: 'إدارة مصادر البث', blocks: 'الحجب المخصص', stats: 'الإحصائيات', users: 'إدارة المستخدمين' },
+    },
     twoFactor: { title: 'المصادقة الثنائية', enable: 'تفعيل', disable: 'تعطيل', enabled: 'مفعّلة', scan: 'أضف هذا المفتاح في تطبيق المصادقة ثم أدخل الرمز', code: 'رمز التحقق', password: 'كلمة المرور', verify: 'تحقق' },
 };

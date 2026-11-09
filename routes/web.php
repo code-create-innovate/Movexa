@@ -20,8 +20,8 @@ Route::get('locale/{lang}', function (string $lang) {
     session(['locale' => $lang]);
     if ($user = auth()->user()) {
         $profile = app(\App\Modules\Core\Services\ProfileContext::class)->current();
-        $profile ? $profile->update(['locale' => $lang]) : null;
-        $profile?->is_kid || $user->forceFill(['locale' => $lang])->save();
+        $profile?->update(['locale' => $lang]);
+        $user->forceFill(['locale' => $lang])->save();
     }
     $back = (string) request('back', '/');
 
@@ -52,12 +52,8 @@ Route::middleware('guest')->group(function () {
 Route::get('m/{token}/{path?}', MediaAccessController::class)->where('path', '[A-Za-z0-9_\-./]+')->name('media');
 
 Route::middleware('auth')->group(function () {
-    Route::get('profiles', [ProfileController::class, 'select'])->name('profiles.select');
-    Route::post('profiles/{profile}/enter', [ProfileController::class, 'enter'])->middleware('throttle:20,1')->name('profiles.enter');
-    Route::post('profiles', [ProfileController::class, 'store'])->name('profiles.store');
-    Route::patch('profiles/{profile}', [ProfileController::class, 'update'])->name('profiles.update');
-    Route::delete('profiles/{profile}', [ProfileController::class, 'destroy'])->name('profiles.destroy');
-    Route::put('settings/parental-pin', [ProfileController::class, 'parentalPin'])->name('parental-pin.update');
+    // No profile picker: every person signs in with their own account. Old links land on the home page.
+    Route::redirect('profiles', '/home')->name('profiles.select');
 
     Route::get('link', [\App\Modules\Devices\Http\Controllers\DeviceLoginController::class, 'link'])->name('link');
     Route::get('device-login/lookup', [\App\Modules\Devices\Http\Controllers\DeviceLoginController::class, 'lookup'])->middleware('throttle:10,1');
@@ -89,10 +85,12 @@ Route::middleware('auth')->group(function () {
         Route::get('playback/job/{job}', [PlaybackController::class, 'status'])->name('playback.status');
         Route::post('watch/{file}/subtitles', [PlaybackController::class, 'uploadSubtitle'])->name('subtitles.upload');
 
-        Route::post('party/{file}', [WatchPartyController::class, 'create'])->name('party.create');
-        Route::get('party/{uuid}/state', [WatchPartyController::class, 'state'])->name('party.state');
-        Route::post('party/{uuid}/state', [WatchPartyController::class, 'update'])->name('party.update');
-        Route::post('party/{uuid}/messages', [WatchPartyController::class, 'message'])->middleware('throttle:30,1')->name('party.message');
+        Route::middleware('perm:party')->group(function () {
+            Route::post('party/{file}', [WatchPartyController::class, 'create'])->name('party.create');
+            Route::get('party/{uuid}/state', [WatchPartyController::class, 'state'])->name('party.state');
+            Route::post('party/{uuid}/state', [WatchPartyController::class, 'update'])->name('party.update');
+            Route::post('party/{uuid}/messages', [WatchPartyController::class, 'message'])->middleware('throttle:30,1')->name('party.message');
+        });
 
         Route::get('pick', \App\Modules\Library\Http\Controllers\PickController::class)->middleware('throttle:60,1')->name('pick');
 
@@ -102,44 +100,63 @@ Route::middleware('auth')->group(function () {
         Route::post('remote/{uuid}/state', [\App\Modules\Devices\Http\Controllers\RemoteController::class, 'state'])->middleware('throttle:120,1');
         Route::post('remote/{uuid}/command', [\App\Modules\Devices\Http\Controllers\RemoteController::class, 'command'])->middleware('throttle:120,1');
 
+        Route::middleware('perm:download')->group(function () {
         Route::get('downloads', [\App\Modules\Devices\Http\Controllers\DownloadController::class, 'index'])->name('downloads');
         Route::post('downloads', [\App\Modules\Devices\Http\Controllers\DownloadController::class, 'store'])->middleware('throttle:20,1');
         Route::get('downloads/{uuid}/manifest', [\App\Modules\Devices\Http\Controllers\DownloadController::class, 'manifest']);
         Route::post('downloads/sync', [\App\Modules\Devices\Http\Controllers\DownloadController::class, 'sync']);
         Route::delete('downloads/{uuid}', [\App\Modules\Devices\Http\Controllers\DownloadController::class, 'destroy']);
+        });
 
+        Route::middleware('perm:live')->group(function () {
         Route::get('live', [LiveController::class, 'index'])->name('live');
         Route::post('live/{channel}/watch', [LiveController::class, 'watch'])->name('live.watch');
         Route::get('live/stream/{stream}/status', [LiveController::class, 'status'])->name('live.status');
         Route::post('live/stream/{stream}/leave', [LiveController::class, 'leave'])->name('live.leave');
         Route::post('live/{channel}/favorite', [LiveController::class, 'favorite'])->name('live.favorite');
+        });
 
-        // Custom blocking (admin: everyone; account owner: own profiles). Kid profiles are refused in the controller.
+        // Custom blocking — admins and accounts with the "blocks" permission.
+        Route::middleware('perm:blocks')->group(function () {
         Route::get('blocks', [\App\Modules\Core\Http\Controllers\BlockController::class, 'index'])->name('blocks');
         Route::get('blocks/options', [\App\Modules\Core\Http\Controllers\BlockController::class, 'options'])->name('blocks.options');
         Route::post('blocks', [\App\Modules\Core\Http\Controllers\BlockController::class, 'store'])->middleware('throttle:30,1')->name('blocks.store');
         Route::delete('blocks', [\App\Modules\Core\Http\Controllers\BlockController::class, 'destroy'])->middleware('throttle:30,1')->name('blocks.destroy');
-        Route::post('view-as/{profile}', [\App\Modules\Core\Http\Controllers\BlockController::class, 'viewAs'])->name('view-as');
+        });
+        Route::post('view-as/{user}', [\App\Modules\Core\Http\Controllers\BlockController::class, 'viewAs'])->middleware('perm:users')->name('view-as');
 
-        Route::middleware('admin')->prefix('admin')->name('admin.')->group(function () {
-            Route::get('/', [AdminController::class, 'dashboard'])->name('dashboard');
+        Route::prefix('admin')->name('admin.')->group(function () {
+            Route::get('/', [AdminController::class, 'dashboard'])->middleware('perm:stats,users,library,upload,quarantine,live_manage')->name('dashboard');
+            Route::delete('transcodes/{job}', [AdminController::class, 'deleteTranscode'])->middleware('perm:stats')->name('transcodes.destroy');
+
+            Route::middleware('perm:users')->group(function () {
+                Route::get('users', [AdminController::class, 'users'])->name('users');
+                Route::post('users', [AdminController::class, 'storeUser'])->name('users.store');
+                Route::patch('users/{user}', [AdminController::class, 'updateUser'])->name('users.update');
+            });
+
+            Route::get('library', [AdminController::class, 'library'])->middleware('perm:library,upload')->name('library');
+            Route::middleware('perm:upload')->group(function () {
+                Route::post('uploads', [AdminController::class, 'uploadInit'])->name('uploads.init');
+                Route::put('uploads/{uuid}', [AdminController::class, 'uploadChunk'])->name('uploads.chunk');
+            });
+            Route::middleware('perm:library')->group(function () {
             Route::post('libraries', [AdminController::class, 'storeLibrary'])->name('libraries.store');
             Route::delete('libraries/{library}', [AdminController::class, 'destroyLibrary'])->name('libraries.destroy');
             Route::post('libraries/{library}/scan', [AdminController::class, 'scan'])->name('libraries.scan');
-            Route::post('users', [AdminController::class, 'storeUser'])->name('users.store');
-            Route::patch('users/{user}', [AdminController::class, 'updateUser'])->name('users.update');
             Route::get('matches', [AdminController::class, 'matches'])->name('matches');
             Route::post('files/{file}/rematch', [AdminController::class, 'rematch'])->name('files.rematch');
             Route::post('files/{file}/intro', [AdminController::class, 'setIntro'])->name('files.intro');
             Route::post('files/{file}/pretranscode', [AdminController::class, 'pretranscode'])->name('files.pretranscode');
             Route::patch('items/{item}', [AdminController::class, 'updateItem'])->name('items.update');
             Route::post('items/{item}/feature', [AdminController::class, 'feature'])->name('items.feature');
-            Route::delete('transcodes/{job}', [AdminController::class, 'deleteTranscode'])->name('transcodes.destroy');
+            });
+            Route::middleware('perm:quarantine')->group(function () {
             Route::get('quarantine', [AdminController::class, 'quarantine'])->name('quarantine');
             Route::post('quarantine/{job}/retry', [AdminController::class, 'retry'])->name('quarantine.retry');
             Route::delete('quarantine/{job}', [AdminController::class, 'purge'])->name('quarantine.purge');
-            Route::post('uploads', [AdminController::class, 'uploadInit'])->name('uploads.init');
-            Route::put('uploads/{uuid}', [AdminController::class, 'uploadChunk'])->name('uploads.chunk');
+            });
+            Route::middleware('perm:live_manage')->group(function () {
             Route::get('live', [LiveAdminController::class, 'index'])->name('live');
             Route::post('live/sources', [LiveAdminController::class, 'storeSource'])->name('live.sources.store');
             Route::post('live/sources/{source}/refresh', [LiveAdminController::class, 'refresh'])->name('live.sources.refresh');
@@ -147,6 +164,7 @@ Route::middleware('auth')->group(function () {
             Route::patch('live/channels/{channel}', [LiveAdminController::class, 'updateChannel'])->name('live.channels.update');
             Route::post('live/channels/{channel}/record', [LiveAdminController::class, 'record'])->name('live.record');
             Route::delete('live/recordings/{recording}', [LiveAdminController::class, 'cancelRecording'])->name('live.recordings.cancel');
+            });
         });
     });
 });

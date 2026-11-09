@@ -37,23 +37,24 @@ class AccessBlockTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->owner = User::factory()->create(['password' => 'secret-pass', 'oidc_subject' => 'hc-b']);
-        $this->b = $this->owner->profiles()->create(['name' => 'B']); // first non-kid profile → used by HomeCore API
-        $this->a = $this->owner->profiles()->create(['name' => 'A']);
+        // Two separate accounts (one per person). B is the one being blocked; the admin does the blocking.
+        $this->owner = User::factory()->create(['password' => 'secret-pass', 'is_admin' => true]);
+        $this->b = User::factory()->create(['oidc_subject' => 'hc-b', 'permissions' => ['live', 'party', 'download']])->primaryProfile();
+        $this->a = User::factory()->create(['permissions' => ['live', 'party', 'download']])->primaryProfile();
         $this->movie = MediaFixtures::readyMovie($this->dataRoot.'/library', ['title' => 'Horror Night', 'age_rating' => 16, 'genres' => ['Horror'], 'poster_path' => 'p.webp']);
         file_put_contents($this->dataRoot.'/images/p.webp', 'x');
     }
 
     private function as($profile): void
     {
-        $this->actingAs($profile->user)->withSession([ProfileContext::SESSION_KEY => $profile->id]);
+        $this->actingAs($profile->user);
     }
 
     private function block(string $type, $id, $value = null, $subject = null, $expires = null): AccessBlock
     {
         $subject ??= $this->b;
 
-        return AccessBlock::create(['target_type' => $type, 'target_id' => $id, 'target_value' => $value, 'subject_type' => 'profile', 'subject_id' => $subject->id, 'expires_at' => $expires]);
+        return AccessBlock::create(['target_type' => $type, 'target_id' => $id, 'target_value' => $value, 'subject_type' => 'user', 'subject_id' => $subject->user_id, 'expires_at' => $expires]);
     }
 
     private function assertHidden($profile, MediaFile $file): void
@@ -95,7 +96,6 @@ class AccessBlockTest extends TestCase
     public function test_block_also_covers_banner_wall_top10_pick_history_downloads_and_party(): void
     {
         config(['movexa.transcode.hwaccel' => 'none']);
-        $this->owner->update(['downloads_enabled' => true]);
         $this->movie->item->update(['backdrop_path' => 'p.webp', 'featured' => true]);
         // Real data for Top 10 (needs ≥ 5 titles) and history.
         $others = [];
@@ -157,11 +157,12 @@ class AccessBlockTest extends TestCase
         $this->assertHidden($this->b, $files[2]);
     }
 
-    public function test_account_block_covers_every_profile_of_the_account(): void
+    public function test_block_is_per_account_and_does_not_leak_to_other_accounts(): void
     {
-        AccessBlock::create(['target_type' => 'item', 'target_id' => $this->movie->media_item_id, 'subject_type' => 'user', 'subject_id' => $this->owner->id]);
+        $this->block('item', $this->movie->media_item_id, null, $this->a);
         $this->assertHidden($this->a, $this->movie);
-        $this->assertHidden($this->b, $this->movie);
+        $this->as($this->b);
+        $this->get("/title/{$this->movie->media_item_id}")->assertOk();
     }
 
     public function test_temporary_block_expires_on_time(): void
@@ -177,9 +178,10 @@ class AccessBlockTest extends TestCase
     {
         Event::fake([AccessRevoked::class]);
         $this->as($this->b);
-        $url = app(MediaSigner::class)->url('file', $this->movie->id, $this->owner->id, $this->b->id, 'x.mp4');
+        $url = app(MediaSigner::class)->url('file', $this->movie->id, $this->b->user_id, $this->b->id, 'x.mp4');
         $this->get($url)->assertOk();
-        $this->post('/blocks', ['target_type' => 'item', 'target_id' => $this->movie->media_item_id, 'profiles' => [$this->b->id], 'secret' => 'secret-pass'])->assertRedirect();
+        $this->actingAs($this->owner)->post('/blocks', ['target_type' => 'item', 'target_id' => $this->movie->media_item_id, 'users' => [$this->b->user_id], 'secret' => 'secret-pass'])->assertRedirect();
+        $this->as($this->b);
         $this->get($url)->assertNotFound();          // same still-valid token: refused immediately
         $this->postJson("/playback/{$this->movie->id}/start", [])->assertNotFound(); // no new/renewed URLs
         Event::assertDispatched(AccessRevoked::class, fn ($e) => in_array($this->b->id, $e->profileIds, true));
@@ -201,46 +203,44 @@ class AccessBlockTest extends TestCase
         $this->get('/live')->assertInertia(fn ($p) => $p->has('channels', 2));
     }
 
-    public function test_owner_permissions_secret_and_visibility_of_the_list(): void
+    public function test_who_may_block_secret_and_visibility_of_the_list(): void
     {
-        $stranger = User::factory()->create();
-        $strangerProfile = $stranger->profiles()->create(['name' => 'X']);
-        $this->as($this->a);
         $base = ['target_type' => 'item', 'target_id' => $this->movie->media_item_id];
-        $this->post('/blocks', $base + ['profiles' => [$this->b->id], 'secret' => 'wrong'])->assertSessionHasErrors('secret');
-        $this->post('/blocks', $base + ['profiles' => [$strangerProfile->id], 'secret' => 'secret-pass'])->assertStatus(422); // not your account
-        $this->post('/blocks', $base + ['profiles' => [$this->b->id], 'secret' => 'secret-pass'])->assertRedirect();
-        $this->assertSame(1, AccessBlock::count());
+        // No "blocks" permission → no access at all.
+        $this->as($this->a);
+        $this->get('/blocks')->assertForbidden();
+        $this->post('/blocks', $base + ['users' => [$this->b->user_id], 'secret' => 'password'])->assertForbidden();
 
-        // The blocked profile does not see the block in the list.
+        // A block manager (not admin) needs the password and cannot target their own account.
+        $manager = User::factory()->create(['password' => 'mgr-pass-1', 'permissions' => ['blocks']]);
+        $this->actingAs($manager);
+        $this->post('/blocks', $base + ['users' => [$this->b->user_id], 'secret' => 'wrong'])->assertSessionHasErrors('secret');
+        $this->post('/blocks', $base + ['users' => [$manager->id], 'secret' => 'mgr-pass-1'])->assertStatus(422);
+        $this->post('/blocks', $base + ['users' => [$this->b->user_id], 'secret' => 'mgr-pass-1'])->assertRedirect();
+        $this->assertSame(1, AccessBlock::count());
+        $this->get('/blocks')->assertInertia(fn ($p) => $p->has('blocks', 1));
+
+        // The blocked account never sees blocks about itself (even if it may manage blocks).
+        $this->b->user->update(['permissions' => ['blocks']]);
         $this->as($this->b);
         $this->get('/blocks')->assertInertia(fn ($p) => $p->has('blocks', 0));
-        $this->as($this->a);
-        $this->get('/blocks')->assertInertia(fn ($p) => $p->has('blocks', 1)->where('warning_no_pin', true));
 
-        // Kid profiles can't open or change blocks.
-        $kid = $this->owner->profiles()->create(['name' => 'Kid', 'is_kid' => true]);
-        $this->as($kid);
-        $this->get('/blocks')->assertForbidden();
-        $this->delete('/blocks', ['ids' => [AccessBlock::first()->id], 'secret' => 'secret-pass'])->assertForbidden();
-
-        $this->as($this->a);
-        $this->delete('/blocks', ['ids' => [AccessBlock::first()->id], 'secret' => 'secret-pass'])->assertRedirect();
+        $this->actingAs($manager);
+        $this->delete('/blocks', ['ids' => [AccessBlock::first()->id], 'secret' => 'mgr-pass-1'])->assertRedirect();
         $this->assertSame(0, AccessBlock::count());
         $this->assertTrue(AuditLog::where('action', 'block.removed')->exists());
     }
 
-    public function test_admin_view_as_is_read_only_and_shows_what_the_profile_sees(): void
+    public function test_admin_view_as_is_read_only_and_shows_what_the_account_sees(): void
     {
-        $admin = User::factory()->create(['is_admin' => true]);
-        $ap = $admin->profiles()->create(['name' => 'Admin']);
         $this->block('item', $this->movie->media_item_id);
-        $this->actingAs($admin)->withSession([ProfileContext::SESSION_KEY => $ap->id]);
-        $this->post("/view-as/{$this->b->id}")->assertRedirect('/home');
+        $this->actingAs($this->owner);
+        $this->post("/view-as/{$this->b->user_id}")->assertRedirect('/home');
         $this->get("/title/{$this->movie->media_item_id}")->assertNotFound(); // sees exactly what B sees
         $this->post("/title/{$this->movie->media_item_id}/list")->assertForbidden(); // read-only
-        $this->post('/view-as/exit')->assertRedirect('/admin/blocks');
+        $this->post('/view-as/exit')->assertRedirect('/admin/users');
         $this->get("/title/{$this->movie->media_item_id}")->assertOk();
+        $this->actingAs($this->a->user)->post("/view-as/{$this->b->user_id}")->assertForbidden(); // needs "users"
     }
 
     public function test_policy_fails_closed(): void

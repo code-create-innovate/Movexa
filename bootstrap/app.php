@@ -31,9 +31,12 @@ return Application::configure(basePath: dirname(__DIR__))
             SecurityHeaders::class,
         ]);
         $middleware->api(append: [SecurityHeaders::class]);
+        // Permission checks run before route-model binding (no "exists?" probing without permission).
+        $middleware->prependToPriorityList(before: \Illuminate\Routing\Middleware\SubstituteBindings::class, prepend: EnsureAdmin::class);
         $middleware->alias([
             'profile' => EnsureProfileSelected::class,
             'admin' => EnsureAdmin::class,
+            'perm' => EnsureAdmin::class,
             'api.token' => ApiTokenAuth::class,
         ]);
     })

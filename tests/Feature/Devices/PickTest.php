@@ -16,7 +16,7 @@ class PickTest extends TestCase
     public function test_pick_respects_age_scan_state_blocks_history_and_filters(): void
     {
         $profile = $this->actingAsProfile();
-        $kid = $profile->user->profiles()->create(['name' => 'Kid', 'is_kid' => true, 'max_age_rating' => 7]);
+        $kid = $this->account(['max_age_rating' => 7])->primaryProfile();
         $lib = $this->dataRoot.'/library';
         $kids = MediaFixtures::readyMovie($lib, ['title' => 'Cartoon', 'age_rating' => 0, 'genres' => ['Animation'], 'vote_average' => 8]);
         $adult = MediaFixtures::readyMovie($lib, ['title' => 'Adult', 'age_rating' => 18, 'genres' => ['Drama'], 'vote_average' => 6]);
@@ -25,7 +25,7 @@ class PickTest extends TestCase
         $seen = MediaFixtures::readyMovie($lib, ['title' => 'Seen', 'age_rating' => 0]);
         DB::table('watch_history')->insert(['profile_id' => $profile->id, 'media_item_id' => $seen->media_item_id, 'watched_at' => now()]);
         $blocked = MediaFixtures::readyMovie($lib, ['title' => 'Blocked', 'age_rating' => 0]);
-        AccessBlock::create(['target_type' => 'item', 'target_id' => $blocked->media_item_id, 'subject_type' => 'profile', 'subject_id' => $profile->id]);
+        AccessBlock::create(['target_type' => 'item', 'target_id' => $blocked->media_item_id, 'subject_type' => 'user', 'subject_id' => $profile->user_id]);
 
         $titles = [];
         for ($i = 0; $i < 20; $i++) {
@@ -43,7 +43,7 @@ class PickTest extends TestCase
         $fresh();
         $this->getJson('/pick?max_minutes=1')->assertJsonPath('item.title', fn ($t) => in_array($t, ['Cartoon', 'Adult'], true)); // 4 s fixtures
 
-        $this->withSession([ProfileContext::SESSION_KEY => $kid->id, 'pick_recent' => []]);
+        $this->actingAs($kid->user)->withSession(['pick_recent' => []]);
         for ($i = 0; $i < 10; $i++) {
             $this->withSession(['pick_recent' => []]);
             $this->assertContains($this->getJson('/pick')->json('item.title'), ['Cartoon', 'Seen', 'Blocked']);
