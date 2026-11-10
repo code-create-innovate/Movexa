@@ -42,7 +42,7 @@ export default function Blocks({ blocks, isAdmin, audit, targets }: Props) {
     ));
     return (
         <MovexaLayout title={t.blocks.title}>
-            <div className="mx-auto max-w-5xl space-y-6 px-4 py-6">
+            <div className="mx-auto max-w-5xl space-y-6 py-2">
                 <div className="flex flex-wrap items-center gap-3">
                     <h1 className="text-2xl font-bold">{t.blocks.title}</h1>
                     {generic.length > 0 && <div className="ms-auto"><BlockDialog targets={generic} /></div>}

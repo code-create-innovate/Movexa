@@ -1,6 +1,6 @@
 import '../css/app.css';
 
-import { createInertiaApp } from '@inertiajs/react';
+import { createInertiaApp, router } from '@inertiajs/react';
 import { DirectionProvider } from '@radix-ui/react-direction';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
@@ -21,6 +21,11 @@ createInertiaApp({
         const dir = locale === 'ar' ? 'rtl' : 'ltr';
         document.documentElement.dir = dir;
         document.documentElement.lang = locale;
+        // Direction is fixed for the whole app: if a visit lands in another language (e.g. right after
+        // signing in to an account set to English from an Arabic login page), reload once so dir/lang match.
+        router.on('navigate', (e) => {
+            if ((e.detail.page.props as { locale?: string }).locale !== locale) window.location.href = e.detail.page.url;
+        });
         createRoot(el).render(
             <DirectionProvider dir={dir}>
                 <App {...props} />

@@ -236,3 +236,28 @@ video::cue {
 
 /* ---- Top 10 big rank numbers ---- */
 .mx-rank { font-size: clamp(5rem, 11vw, 9rem); line-height: .8; font-weight: 900; color: var(--background); -webkit-text-stroke: 3px rgb(255 255 255 / .55); letter-spacing: -.08em; }
+
+/* ---- Glass shell (frosted panels over a blurred backdrop of the current title) ---- */
+.mx-bg { position: fixed; inset: 0; z-index: -20; overflow: hidden; background: color-mix(in srgb, var(--page-tint) 35%, #0b0b10); }
+.mx-bg img { position: absolute; inset: -8%; width: 116%; height: 116%; object-fit: cover; filter: blur(42px) saturate(1.25); opacity: .9; transition: opacity 1.2s ease; }
+.mx-bg::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgb(10 10 16 / .35), rgb(10 10 16 / .65)); }
+:root:not(.dark) .mx-bg::after { background: linear-gradient(180deg, rgb(235 235 240 / .45), rgb(220 220 228 / .7)); }
+.mx-glass {
+    background: rgb(255 255 255 / .09);
+    border: 1px solid rgb(255 255 255 / .16);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / .12), 0 20px 60px -20px rgb(0 0 0 / .45);
+    backdrop-filter: blur(28px) saturate(1.4);
+    -webkit-backdrop-filter: blur(28px) saturate(1.4);
+}
+.mx-glass-soft { background: rgb(255 255 255 / .07); border: 1px solid rgb(255 255 255 / .1); }
+:root:not(.dark) .mx-glass { background: rgb(255 255 255 / .5); border-color: rgb(255 255 255 / .7); box-shadow: 0 20px 60px -25px rgb(0 0 0 / .25); }
+:root:not(.dark) .mx-glass-soft { background: rgb(255 255 255 / .45); border-color: rgb(255 255 255 / .6); }
+/* weak devices / TVs: no live blur, just a solid translucent surface */
+.mx-lite .mx-glass { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgb(28 28 36 / .92); }
+.mx-pill { border-radius: 9999px; padding: .45rem 1rem; font-size: .875rem; color: color-mix(in srgb, var(--foreground) 75%, transparent); transition: background .2s, color .2s; white-space: nowrap; }
+.mx-pill:hover { color: var(--foreground); background: rgb(255 255 255 / .08); }
+.mx-pill[aria-current='page'] { color: var(--foreground); font-weight: 600; background: rgb(255 255 255 / .16); box-shadow: inset 0 1px 0 rgb(255 255 255 / .15); }
+.mx-play { display: inline-flex; align-items: center; justify-content: center; border-radius: 9999px; background: #fff; color: #111; box-shadow: 0 6px 18px rgb(0 0 0 / .35); transition: transform .2s; }
+.mx-play:hover, a:focus-visible .mx-play, a:hover .mx-play { transform: scale(1.08); }
+.mx-no-scrollbar { scrollbar-width: none; }
+.mx-no-scrollbar::-webkit-scrollbar { display: none; }

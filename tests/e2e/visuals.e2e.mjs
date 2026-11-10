@@ -51,6 +51,27 @@ try {
     await put(p2, '/profile/preferences', { settings: { intro: true } });
     await ctx2.close();
 
+    // ---------- glass home ----------
+    await page.goto(`${BASE}/home`);
+    await page.getByTestId('glass-panel').waitFor({ timeout: 5000 });
+    if (!(await page.getByTestId('rail').isVisible())) fail('side rail missing on desktop');
+    if ((await page.locator('[data-testid=pills] a[aria-current=page]').getAttribute('href')) !== '/home') fail('home pill not active');
+    const cont = page.getByTestId('panel-continue');
+    await cont.waitFor({ timeout: 5000 });
+    if (!(await cont.locator('a[href^="/watch/"]').count())) fail('continue-watching panel has no direct play link');
+    await page.locator('[data-testid=pills] a[href="/search?type=movie"]').click();
+    await page.waitForURL('**/search?type=movie');
+    if ((await page.locator('[data-testid=pills] a[aria-current=page]').getAttribute('href')) !== '/search?type=movie') fail('movies pill not active on its page');
+    step('glass home: side rail, category pills, continue-watching panel → player');
+    const gctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    const mp = await signIn(gctx);
+    await mp.waitForTimeout(800);
+    const [sw, iw] = await mp.evaluate(() => [document.documentElement.scrollWidth, innerWidth]);
+    if (sw > iw) fail(`horizontal scroll on phone (${sw} > ${iw})`);
+    if (await mp.getByTestId('rail').isVisible()) fail('side rail should be hidden on phones');
+    step('phone: no horizontal scroll, rail replaced by the menu');
+    await gctx.close();
+
     // ---------- ambient glow ----------
     await page.goto(`${BASE}/watch/${FILE}`);
     await page.waitForFunction(() => { const v = document.querySelector('video'); return v && v.currentTime > 1 && !v.paused; }, null, { timeout: 30000 });

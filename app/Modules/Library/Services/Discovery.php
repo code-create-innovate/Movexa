@@ -33,6 +33,8 @@ class Discovery
             'overview' => $ar ? ($i->overview_ar ?: $i->overview) : ($i->overview ?: $i->overview_ar),
             'preview' => $i->preview_path ? $this->signer->url('img', $i->id, auth()->id() ?? $profile->user_id, $profile->id, 'preview') : null,
             'in_list' => $list->has($i->id),
+            // "Watch" goes straight to the player for movies (shows open their page to pick an episode)
+            'file_id' => $i->type === 'movie' ? $i->files()->where('status', 'ready')->get()->first(fn ($f) => $f->viewableBy($profile))?->id : null,
         ])->all();
     }
 

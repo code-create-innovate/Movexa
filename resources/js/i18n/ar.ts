@@ -52,6 +52,7 @@ export default {
     },
     pick: { button: 'شن نتفرج؟', title: 'شن نتفرج؟', another: 'اختيار آخر', none: 'ما لقينا شي يطابق اختياراتك. جرّب تخفف الفلاتر.', anyType: 'فيلم أو مسلسل', minutes: 'الوقت المتاح (دقيقة)', lang: 'لغة الصوت أو الترجمة', go: 'اختر لي', details: 'التفاصيل' },
     top: { movies: 'أكثر 10 أفلام مشاهدة في الحوش', shows: 'أكثر 10 مسلسلات مشاهدة في الحوش' },
+    glass: { featured: 'مميز', seeAll: 'عرض الكل', more: 'خيارات أخرى', prev: 'السابق', next: 'التالي', watch: 'شاهد', resume: 'كمّل', all: 'الكل', searchHint: 'ابحث عن فيلم أو مسلسل', menu: 'القائمة' },
     visuals: {
         title: 'إعدادات المشاهدة', intro: 'مقدمة Movexa عند الدخول', pauseScreen: 'شاشة الإيقاف المؤقت', posterWall: 'جدار البوسترات المتحرك', recap: 'بطاقة "وين وقفنا؟"',
         ambient: 'إضاءة حول الفيديو', off: 'إيقاف', soft: 'خفيف', strong: 'قوي', endsAt: 'ينتهي الساعة', remaining: 'متبقٍ', recapTitle: 'وين وقفنا؟', continue: 'كمّل', skip: 'تخطَّ',

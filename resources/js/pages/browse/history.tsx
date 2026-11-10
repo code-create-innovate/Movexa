@@ -7,7 +7,7 @@ export default function History({ entries }: { entries: (Card & { watched_at: st
     const { t, locale } = useT();
     return (
         <MovexaLayout title={t.history}>
-            <div className="px-4 py-6 md:px-10">
+            <div className="py-2">
                 <h1 className="mb-6 text-2xl font-bold">{t.history}</h1>
                 {entries.length === 0 && <p className="text-muted-foreground">{t.noResults}</p>}
                 <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8">

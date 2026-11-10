@@ -22,7 +22,7 @@ export default function Search({ results, filters, genres }: { results: Card[]; 
     const years = Array.from({ length: 60 }, (_, i) => new Date().getFullYear() - i);
     return (
         <MovexaLayout title={t.search}>
-            <div className="space-y-6 px-4 py-6 md:px-10">
+            <div className="space-y-6 py-2">
                 <Input dir="auto" autoFocus className="h-14 text-lg" placeholder={t.searchPlaceholder} value={f.q ?? ''} onChange={(e) => setF({ ...f, q: e.target.value })} />
                 <div className="flex flex-wrap gap-2">
                     <Select value={f.type ?? 'all'} onValueChange={(v) => setF({ ...f, type: v })}>

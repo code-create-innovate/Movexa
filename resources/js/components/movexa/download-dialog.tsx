@@ -8,7 +8,7 @@ import { api, useT } from '@/lib/i18n';
 
 type F = { id: number; audio: { language: string | null; title: string | null }[]; subtitles: { id: number; label: string }[] };
 
-export function DownloadDialog({ file }: { file: F }) {
+export function DownloadDialog({ file, defaultOpen = false }: { file: F; defaultOpen?: boolean }) {
     const { t } = useT();
     const [quality, setQuality] = useState(480);
     const [audio, setAudio] = useState(0);
@@ -20,7 +20,7 @@ export function DownloadDialog({ file }: { file: F }) {
         else setErr(r.data?.message === 'count_limit' ? t.devices.countLimit : r.data?.message === 'quota' ? t.devices.quota : t.devices.disabled);
     };
     return (
-        <Dialog>
+        <Dialog defaultOpen={defaultOpen}>
             <DialogTrigger asChild><Button size="lg" variant="secondary"><Download /> {t.devices.download}</Button></DialogTrigger>
             <DialogContent>
                 <DialogHeader><DialogTitle>{t.devices.download}</DialogTitle></DialogHeader>

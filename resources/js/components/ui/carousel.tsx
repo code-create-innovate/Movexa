@@ -18,17 +18,17 @@ export function Carousel({ children, className, label }: { children: React.React
     const Next = dir === 'rtl' ? ChevronLeft : ChevronRight;
     return (
         <div className={cn('group/carousel relative', className)} role="region" aria-roledescription="carousel" aria-label={label}>
-            <div ref={ref} className="overflow-hidden px-4 md:px-10">
-                <div className="flex gap-2 md:gap-3">{children}</div>
+            <div ref={ref} className="-mx-1 overflow-hidden px-1 py-2">
+                <div className="flex gap-3 md:gap-4">{children}</div>
             </div>
             {can.prev && (
-                <button type="button" tabIndex={-1} aria-hidden onClick={() => api?.scrollPrev()} className="absolute inset-y-0 start-0 z-10 hidden w-10 items-center justify-center bg-linear-to-r rtl:bg-linear-to-l from-background/90 to-transparent opacity-0 transition group-hover/carousel:opacity-100 md:flex">
-                    <Prev className="size-8" />
+                <button type="button" tabIndex={-1} aria-hidden onClick={() => api?.scrollPrev()} className="mx-glass absolute top-1/2 start-1 z-10 hidden size-10 -translate-y-1/2 items-center justify-center rounded-full opacity-0 transition group-hover/carousel:opacity-100 md:flex">
+                    <Prev className="size-5" />
                 </button>
             )}
             {can.next && (
-                <button type="button" tabIndex={-1} aria-hidden onClick={() => api?.scrollNext()} className="absolute inset-y-0 end-0 z-10 hidden w-10 items-center justify-center bg-linear-to-l rtl:bg-linear-to-r from-background/90 to-transparent opacity-0 transition group-hover/carousel:opacity-100 md:flex">
-                    <Next className="size-8" />
+                <button type="button" tabIndex={-1} aria-hidden onClick={() => api?.scrollNext()} className="mx-glass absolute top-1/2 end-1 z-10 hidden size-10 -translate-y-1/2 items-center justify-center rounded-full opacity-0 transition group-hover/carousel:opacity-100 md:flex">
+                    <Next className="size-5" />
                 </button>
             )}
         </div>

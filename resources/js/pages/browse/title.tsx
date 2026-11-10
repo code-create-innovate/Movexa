@@ -33,11 +33,11 @@ export default function Title({ item, file, seasons }: { item: Item; file: FileI
     const langs = (f: FileInfo | null) => f ? [...new Set(f.audio.map((a) => a.language ?? '—'))].join(' · ') : '';
 
     return (
-        <MovexaLayout title={item.title} transparent>
-            <section className="relative min-h-[60vh]">
-                {item.backdrop && <img src={item.backdrop} alt="" className="absolute inset-0 size-full object-cover" />}
-                <div className="absolute inset-0 bg-linear-to-t from-background via-background/70 to-background/20" />
-                <div className="relative flex flex-col gap-6 px-4 pt-28 pb-8 md:flex-row md:px-10">
+        <MovexaLayout title={item.title} backdrop={item.backdrop}>
+            <section className="relative isolate overflow-hidden rounded-3xl">
+                {item.backdrop && <img src={item.backdrop} alt="" className="absolute inset-0 -z-10 size-full object-cover" />}
+                <div className="absolute inset-0 -z-10 bg-linear-to-t from-background via-background/75 to-background/25" />
+                <div className="relative flex flex-col gap-6 p-5 pt-10 md:flex-row md:p-8 md:pt-16">
                     <div className="w-40 shrink-0 md:w-56"><Poster item={item} /></div>
                     <div className="max-w-3xl space-y-4">
                         <h1 dir="auto" className="text-3xl font-black md:text-5xl">{item.title}</h1>
@@ -62,7 +62,7 @@ export default function Title({ item, file, seasons }: { item: Item; file: FileI
                             {target && auth.user?.can.party && !viewAs && (
                                 <Button size="lg" variant="outline" onClick={() => router.post(`/party/${target.id}`)}><Users /> {t.watchParty}</Button>
                             )}
-                            {target && auth.user?.can.download && !viewAs && <DownloadDialog file={target} />}
+                            {target && auth.user?.can.download && !viewAs && <DownloadDialog file={target} defaultOpen={new URLSearchParams(location.search).has('download')} />}
                             {auth.user?.can.blocks && !viewAs && (
                                 <BlockDialog targets={[
                                     { type: 'item', id: item.id, label: `${t.blocks.thisTitle}: ${item.title}` },
@@ -89,7 +89,7 @@ export default function Title({ item, file, seasons }: { item: Item; file: FileI
                 </div>
             </section>
             {seasons.length > 0 && (
-                <section className="px-4 pb-16 md:px-10">
+                <section className="pt-6 pb-6">
                     <Tabs defaultValue={String(seasons[0].number)}>
                         <TabsList className="max-w-full overflow-x-auto scrollbar-none">
                             {seasons.map((s) => <TabsTrigger key={s.number} value={String(s.number)}>{t.season} {s.number}</TabsTrigger>)}

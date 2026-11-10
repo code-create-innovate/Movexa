@@ -76,7 +76,7 @@ export default function Live({ channels }: { channels: Channel[] }) {
 
     return (
         <MovexaLayout title={t.live}>
-            <div className="grid gap-4 p-4 md:grid-cols-[1fr_380px] md:p-6">
+            <div className="grid gap-4 py-2 md:grid-cols-[1fr_380px]">
                 <div className="space-y-3">
                     <div className="relative aspect-video overflow-hidden rounded-lg bg-black">
                         <video ref={video} className="size-full" controls playsInline crossOrigin="use-credentials" />

@@ -54,6 +54,7 @@ const en: typeof ar = {
     },
     pick: { button: 'What to watch?', title: 'What should we watch?', another: 'Another one', none: 'Nothing matches your choices. Try fewer filters.', anyType: 'Movie or show', minutes: 'Time available (minutes)', lang: 'Audio or subtitle language', go: 'Pick for me', details: 'Details' },
     top: { movies: 'Top 10 movies at home', shows: 'Top 10 shows at home' },
+    glass: { featured: 'Featured', seeAll: 'See all', more: 'More options', prev: 'Previous', next: 'Next', watch: 'Watch', resume: 'Resume', all: 'All', searchHint: 'Search movies and shows', menu: 'Menu' },
     visuals: {
         title: 'Viewing settings', intro: 'Movexa intro on sign-in', pauseScreen: 'Pause screen', posterWall: 'Animated poster wall', recap: '"Previously" recap card',
         ambient: 'Ambient light around the video', off: 'Off', soft: 'Soft', strong: 'Strong', endsAt: 'Ends at', remaining: 'left', recapTitle: 'Previously…', continue: 'Continue', skip: 'Skip',
