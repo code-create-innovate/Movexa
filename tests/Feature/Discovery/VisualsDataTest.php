@@ -75,7 +75,14 @@ class VisualsDataTest extends TestCase
         $this->assertLessThanOrEqual(8, count($page['banner']));
         foreach ($page['banner'] as $b) {
             $this->assertLessThanOrEqual(7, $b['age_rating']);
+            // "Watch" goes straight to the player: a ready file of this very title
+            $this->assertSame($b['id'], \App\Modules\Library\Models\MediaFile::findOrFail($b['file_id'])->media_item_id);
         }
+        $first = $page['banner'][0];
+        \App\Modules\Library\Models\MediaFile::whereKey($first['file_id'])->update(['status' => 'scanning']);
+        \Illuminate\Support\Facades\Cache::flush();
+        $again = collect($this->get('/home')->viewData('page')['props']['banner'])->firstWhere('id', $first['id']);
+        $this->assertNull($again, 'a title whose file is not ready leaves the banner: "Watch" never points at an unplayable file');
         foreach ($page['wall'] as $w) { // every poster URL in the wall must also be fetchable by the kid → never above the limit
             $this->get($w['src'])->assertOk();
         }

@@ -56,13 +56,13 @@ try {
     await page.getByTestId('glass-panel').waitFor({ timeout: 5000 });
     if (!(await page.getByTestId('rail').isVisible())) fail('side rail missing on desktop');
     if ((await page.locator('[data-testid=pills] a[aria-current=page]').getAttribute('href')) !== '/home') fail('home pill not active');
-    const cont = page.getByTestId('panel-continue');
-    await cont.waitFor({ timeout: 5000 });
-    if (!(await cont.locator('a[href^="/watch/"]').count())) fail('continue-watching panel has no direct play link');
+    const recent = page.getByTestId('panel-recent');
+    await recent.waitFor({ timeout: 5000 });
+    if (!(await recent.locator('a[href^="/title/"]').count())) fail('recently-added panel has no title links');
     await page.locator('[data-testid=pills] a[href="/search?type=movie"]').click();
     await page.waitForURL('**/search?type=movie');
     if ((await page.locator('[data-testid=pills] a[aria-current=page]').getAttribute('href')) !== '/search?type=movie') fail('movies pill not active on its page');
-    step('glass home: side rail, category pills, continue-watching panel → player');
+    step('glass home: side rail, category pills, recently-added panel');
     const gctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     const mp = await signIn(gctx);
     await mp.waitForTimeout(800);
